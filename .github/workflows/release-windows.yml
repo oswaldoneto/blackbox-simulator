@@ -25,8 +25,11 @@ jobs:
           node-version: 24
           cache: npm
 
-      # O postinstall recompila o better-sqlite3 para o Electron.
-      - run: npm ci
+      # Sem scripts de instalação: o better-sqlite3 9 não compila para o
+      # Node do runner, e aqui ele só é usado pelo Electron. Os testes não
+      # carregam o módulo nativo, e o electron-builder baixa o binário do
+      # better-sqlite3 para o Electron ao empacotar.
+      - run: npm ci --ignore-scripts
 
       - run: npm test
 
