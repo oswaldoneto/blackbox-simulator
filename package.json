@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "Coleta, registra e visualiza parâmetros de voo do Microsoft Flight Simulator 2024.",
   "main": "dist/main/main/index.js",
+  "engines": {
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+  },
   "scripts": {
     "dev:renderer": "vite",
     "dev:main": "concurrently \"tsc -p tsconfig.main.json --watch\" \"esbuild src/main/preload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/main/main/preload.js --watch\"",

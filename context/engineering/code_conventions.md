@@ -94,6 +94,7 @@ Exemplos:
 
 ## Build e execução
 
+- Node.js exigido: 22.22.2+, 24.15+ ou 26+ (campo `engines` do `package.json`), por causa do `jsdom` usado nos testes. O workflow do instalador usa Node 24.
 - `npm run build` gera o renderer (Vite, em `dist/renderer`) e o main (`tsc`, em `dist/main`). O build do main apaga `dist/main` antes de compilar, empacota o preload e copia `src/main/db/migrations` para `dist/main/main/db/migrations`, porque o `tsc` não copia arquivos `.sql`.
 - `npm start` abre o app a partir de `dist/main/main/index.js`, o `main` do `package.json`. Rode `npm run build` antes.
 - `npm run dist:win` gera o instalador Windows em `release/`. Rode no Windows; o caminho normal é o workflow `release-windows.yml` do GitHub Actions (ver ADR-006 em architecture.md).
