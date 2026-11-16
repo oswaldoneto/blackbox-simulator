@@ -122,6 +122,12 @@ Agentes especializados executados em paralelo.
 - Modo Bob: Agent
 - Lê e atualiza: loop_report.md, loop_reports/loop-NNN.md, lessons_learned.md, backlog.md
 
+**4.4 UX**
+- Objetivo: atualizar context/ux/ com qualquer mudança que o loop introduziu na interface (novos fluxos, ajuste em componentes, correções de usabilidade).
+- Modo Bob: Agent
+- Condição: executar somente se o loop alterou a interface (componentes visuais, fluxos de navegação ou comportamento do usuário).
+- Lê e atualiza: design.md, usability.md
+
 > **HITL-4 — Checkpoint pós-Documentação**
 > Perguntas de aprovação:
 > - O contexto reflete o estado atual do código?
@@ -177,9 +183,10 @@ flowchart TD
     D1[4.1 Produto]
     D2[4.2 Engenharia]
     D3[4.3 ADLC]
+    D4[4.4 UX]
   end
 
-  D1 & D2 & D3 --> HITL4{HITL-4\nEncerrar loop?}
+  D1 & D2 & D3 & D4 --> HITL4{HITL-4\nEncerrar loop?}
   HITL4 -- Não → ajustar --> D1
   HITL4 -- Sim --> Fim([Loop encerrado])
 ```
@@ -193,10 +200,10 @@ flowchart TD
 | 2.1 | Commits de código (feat/fix) |
 | 2.2 | Commits de testes, resultado de execução |
 | 3.1–3.4 | Relatório de revisão (notas no loop report) |
-| 4.1–4.3 | context/ atualizado, loop_reports/loop-NNN.md, loop_report.md, lessons_learned.md |
+| 4.1–4.4 | context/ atualizado, loop_reports/loop-NNN.md, loop_report.md, lessons_learned.md |
 
 ## Sincronização do contexto
 
 - **Durante o loop**: somente arquivos de código são alterados.
-- **Na fase Documentar**: todos os arquivos de context/ afetados pelo loop são atualizados em paralelo pelos agentes 4.1, 4.2 e 4.3.
+- **Na fase Documentar**: todos os arquivos de context/ afetados pelo loop são atualizados em paralelo pelos agentes 4.1, 4.2, 4.3 e 4.4 (UX somente se a interface mudou).
 - Nenhum arquivo de context/ é alterado sem aprovação do humano no HITL correspondente.
