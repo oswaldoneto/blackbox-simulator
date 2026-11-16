@@ -3,7 +3,7 @@
 > Propósito: Convenções que os agentes de código devem seguir.
 > Atualizar quando: uma convenção for criada ou mudar, inclusive por uma lição aprendida.
 > Relacionados: [architecture.md](architecture.md)
-> Última atualização: 2026-11-16 · loop-001
+> Última atualização: 2026-11-16 · instalador Windows
 
 ## Linguagem e estilo
 
@@ -96,6 +96,9 @@ Exemplos:
 
 - `npm run build` gera o renderer (Vite, em `dist/renderer`) e o main (`tsc`, em `dist/main`). O build do main apaga `dist/main` antes de compilar, empacota o preload e copia `src/main/db/migrations` para `dist/main/main/db/migrations`, porque o `tsc` não copia arquivos `.sql`.
 - `npm start` abre o app a partir de `dist/main/main/index.js`, o `main` do `package.json`. Rode `npm run build` antes.
+- `npm run dist:win` gera o instalador Windows em `release/`. Rode no Windows; o caminho normal é o workflow `release-windows.yml` do GitHub Actions (ver ADR-006 em architecture.md).
+- Para publicar uma versão: atualizar `version` no `package.json`, commitar e criar a tag `v<versão>` (ex.: `git tag v0.1.0 && git push origin v0.1.0`). O workflow publica o `.exe` na Release dessa tag.
+- `electron` fica em `devDependencies`, porque o electron-builder recusa empacotar se ele estiver em `dependencies`.
 - O `postinstall` roda `electron-builder install-app-deps`, que recompila os módulos nativos (`better-sqlite3`) para a versão do Node do Electron. Sem isso o app quebra ao abrir o banco.
 - Fora do Windows, ou sem o Flight Simulator aberto, o log mostra `[SimConnect] Could not connect, retrying in 5s` a cada 5 s. É o comportamento esperado, não um erro de build.
 

@@ -3,7 +3,7 @@
 > Propósito: Visão geral da arquitetura no modelo C4, diretrizes arquiteturais e registro das decisões.
 > Atualizar quando: uma decisão arquitetural for tomada ou revista.
 > Relacionados: [domain_model.md](domain_model.md), [code_conventions.md](code_conventions.md)
-> Última atualização: 2026-11-16 · loop-001
+> Última atualização: 2026-11-16 · instalador Windows
 
 ## Visão geral
 
@@ -53,7 +53,7 @@ C4Container
 - Toda comunicação entre renderer e main usa canais IPC nomeados e tipados. Não usar `remote` do Electron.
 - O main opera em modo passivo em relação ao simulador: somente leitura, nunca envia comandos (RN-006).
 - A coleta de parâmetros ocorre em intervalo fixo de 1 segundo via polling ao SimConnect.
-- O banco SQLite fica em `%APPDATA%\BlackboxSimulator\data.db` para garantir persistência entre atualizações do instalador. Esse caminho é resolvido por `app.getPath('userData')` com `appName = 'BlackboxSimulator'` configurado no electron-builder.
+- O banco SQLite fica em `%APPDATA%\BlackboxSimulator\data.db` para garantir persistência entre atualizações do instalador. Esse caminho é resolvido por `app.getPath('appData')` mais a pasta fixa `BlackboxSimulator`, e por isso não depende do nome do app nem do instalador.
 - O renderer não mantém estado de sessão local: busca via IPC ao main sempre que precisar.
 
 ## Decisões arquiteturais (ADR)
@@ -97,6 +97,14 @@ Status: aceita
 Contexto: O main precisa notificar o renderer sobre eventos assíncronos (sessão iniciada, sessão encerrada) sem que o renderer precise fazer polling.
 Decisão: Canais de push são definidos em `shared/ipc-channels.ts`, emitidos via `webContents.send()` no main e expostos via `contextBridge` no preload como funções que registram callback e retornam `() => void` (unsubscribe).
 Consequências: Padrão consistente e tipado para todos os eventos assíncronos do sistema.
+
+---
+
+ADR-006
+Status: aceita
+Contexto: O usuário precisa instalar o app no Windows sem clonar o repositório nem ter Node.js. O `better-sqlite3` é um módulo nativo e precisa ser compilado para Windows e para a versão do Node embutida no Electron, o que o electron-builder não faz com segurança a partir do macOS.
+Decisão: Gerar o instalador NSIS (`BlackboxSimulator-Setup-<versão>.exe`, x64) no GitHub Actions, num runner `windows-latest` (`.github/workflows/release-windows.yml`). Uma tag `v*` publica o instalador numa Release do GitHub; uma execução manual só gera o instalador como artefato da execução.
+Consequências: Cada versão publicada sai de uma tag, e o instalador é sempre gerado num Windows real. O instalador não é assinado, então o Windows SmartScreen avisa na primeira execução; tirar o aviso exige um certificado de assinatura de código.
 
 ---
 

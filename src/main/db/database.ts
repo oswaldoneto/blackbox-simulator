@@ -8,7 +8,7 @@ let db: Database.Database | null = null
 export function getDatabase(): Database.Database {
   if (db) return db
 
-  const dataDir = path.join(app.getPath('userData'), 'BlackboxSimulator')
+  const dataDir = path.join(app.getPath('appData'), 'BlackboxSimulator')
   fs.mkdirSync(dataDir, { recursive: true })
 
   const dbPath = path.join(dataDir, 'data.db')

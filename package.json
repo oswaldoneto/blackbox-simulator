@@ -18,11 +18,11 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builder install-app-deps",
+    "dist:win": "npm run build && electron-builder --win --x64 --publish never"
   },
   "dependencies": {
     "better-sqlite3": "^9.4.3",
-    "electron": "^29.4.6",
     "node-simconnect": "^4.2.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -41,6 +41,7 @@
     "@vitejs/plugin-react": "^4.2.1",
     "@vitest/coverage-v8": "^1.4.0",
     "concurrently": "^8.2.2",
+    "electron": "^29.4.6",
     "electron-builder": "^24.13.3",
     "esbuild": "^0.21.5",
     "eslint": "^8.57.0",
@@ -55,11 +56,27 @@
   "build": {
     "appId": "com.dio.blackbox-simulator",
     "productName": "Blackbox Simulator",
-    "win": {
-      "target": "nsis"
+    "directories": {
+      "output": "release"
     },
     "files": [
-      "dist/**/*"
-    ]
+      "dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "BlackboxSimulator-Setup-${version}.${ext}"
+    }
   }
 }
