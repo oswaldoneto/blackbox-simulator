@@ -3,11 +3,29 @@
 > Propósito: Como funciona o loop de desenvolvimento: etapas, artefatos e checkpoints humanos (HITL).
 > Atualizar quando: o processo mudar ou uma lição aprendida alterar uma etapa.
 > Relacionados: [backlog.md](backlog.md), [loop_report.md](loop_report.md), [lessons_learned.md](lessons_learned.md), [../product/use_cases.md](../product/use_cases.md)
-> Última atualização: 2026-11-16
+> Última atualização: 2026-11-16 · configuração do Claude Code
 
 ## Visão geral
 
 Cada loop entrega um caso de uso completo (backend + frontend + testes + contexto atualizado). O loop passa por quatro fases em sequência: **Planejar**, **Implementar**, **Revisar** e **Documentar**. Há um checkpoint humano (HITL) entre cada fase. Se a Revisão encontrar problemas, o loop retorna à Implementação.
+
+## Ferramentas
+
+O loop roda em duas ferramentas, com a mesma estrutura de agentes e skills:
+
+| | IBM Bob | Claude Code |
+|---|---|---|
+| Agentes (um por etapa) | `.bob/agents/` | `.claude/agents/` |
+| Skills (`/loop-start`, fases, `/context-*`) | `.bob/skills/` | `.claude/skills/` |
+| Instruções do projeto | `AGENTS.md` | `CLAUDE.md` (importa o `AGENTS.md`) |
+
+Ao mudar um agente ou uma skill numa ferramenta, faça a mesma mudança na outra. O campo "Modo Bob" de cada etapa tem esta equivalência no Claude Code:
+
+| Modo Bob | Claude Code |
+|---|---|
+| Plan | Agente só com ferramentas de leitura (`Read, Grep, Glob`); não altera arquivos |
+| Agent | Agente com ferramentas de edição e terminal, conforme a etapa |
+| Ask | Conversa com o humano, sem alterar arquivos |
 
 ## Etapas
 

@@ -19,6 +19,8 @@ O contexto do projeto vive em context/. Leia os arquivos relevantes antes de agi
 
 Inicie com `/loop-start` (ou `/loop-start <item do backlog>`).
 
+Os agentes e skills existem para o IBM Bob (`.bob/`) e para o Claude Code (`.claude/`). Mantenha as duas versões iguais; a equivalência está em context/adlc/agent_development_lifecycle.md, seção "Ferramentas".
+
 ### Skills de fase
 
 - `/loop-plan` — Planejar (etapas 1.1–1.2, HITL-1)
