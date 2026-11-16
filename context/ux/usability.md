@@ -3,7 +3,7 @@
 > Propósito: Diretrizes de usabilidade e acessibilidade.
 > Atualizar quando: uma diretriz mudar ou um teste com usuários trouxer um aprendizado.
 > Relacionados: [../product/product.md](../product/product.md)
-> Última atualização: 2026-11-16
+> Última atualização: 2026-11-16 · loop-001
 
 ## Princípios
 
@@ -24,7 +24,7 @@
 
 - Toda operação que leva mais de 500 ms mostra um indicador de carregamento.
 - Quando a sessão inicia automaticamente, o sistema exibe uma notificação discreta confirmando o início da coleta.
-- Quando a sessão encerra automaticamente, o sistema exibe uma notificação discreta confirmando o encerramento e a persistência dos dados.
+- Quando a sessão encerra automaticamente, o sistema exibe uma notificação de sucesso confirmando o encerramento: "Sessão encerrada. Dados salvos." A notificação usa o tipo `success` e desaparece em 4 segundos.
 - Mensagens de erro descrevem o que aconteceu e o que o piloto pode fazer. Exemplo: "Não foi possível conectar ao simulador. Verifique se o Microsoft Flight Simulator 2024 está em execução."
 - Estados vazios (ex.: nenhum voo registrado) explicam o motivo e orientam o próximo passo. Exemplo: "Nenhum voo registrado. Inicie o simulador e ligue o motor para começar."
 

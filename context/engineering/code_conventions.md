@@ -3,7 +3,7 @@
 > Propósito: Convenções que os agentes de código devem seguir.
 > Atualizar quando: uma convenção for criada ou mudar, inclusive por uma lição aprendida.
 > Relacionados: [architecture.md](architecture.md)
-> Última atualização: 2026-11-16
+> Última atualização: 2026-11-16 · loop-001
 
 ## Linguagem e estilo
 
@@ -82,3 +82,23 @@ Exemplos:
 - Nunca usar `electron.remote` (depreciado e removido nas versões recentes).
 - Nunca ignorar erros de conexão com o SimConnect com `catch` vazio; sempre logar e emitir evento de estado.
 - Não duplicar tipos entre main e renderer; tipos compartilhados vivem em `shared/types.ts`.
+
+## preload.ts e contextBridge
+
+- O arquivo `src/main/preload.ts` expõe ao renderer via `contextBridge.exposeInMainWorld('electronApi', {...})` somente as funções necessárias.
+- Canais de invoke (renderer → main): expostos como `async function` que chama `ipcRenderer.invoke(canal)`.
+- Canais de push (main → renderer): expostos como função que registra callback via `ipcRenderer.on(canal, callback)` e retorna `() => void` para remoção do listener.
+- A interface `ElectronApi` em `src/renderer/electron-api.d.ts` deve ser mantida sincronizada com `preload.ts`.
+- O preload roda em sandbox (padrão do Electron desde a v20) e só consegue carregar módulos do próprio Electron. Por isso `preload.ts` é empacotado com esbuild (`npm run build:preload`) num único `dist/main/main/preload.js`, que inclui o que ele importa de `shared/`. O `tsc` do main não compila o preload (`tsconfig.main.json` o exclui); os tipos dele são checados por `tsconfig.preload.json`, sem emitir arquivos.
+- Não desligar o sandbox (`sandbox: false`) para contornar erro de import no preload.
+
+## Build e execução
+
+- `npm run build` gera o renderer (Vite, em `dist/renderer`) e o main (`tsc`, em `dist/main`). O build do main apaga `dist/main` antes de compilar, empacota o preload e copia `src/main/db/migrations` para `dist/main/main/db/migrations`, porque o `tsc` não copia arquivos `.sql`.
+- `npm start` abre o app a partir de `dist/main/main/index.js`, o `main` do `package.json`. Rode `npm run build` antes.
+- O `postinstall` roda `electron-builder install-app-deps`, que recompila os módulos nativos (`better-sqlite3`) para a versão do Node do Electron. Sem isso o app quebra ao abrir o banco.
+- Fora do Windows, ou sem o Flight Simulator aberto, o log mostra `[SimConnect] Could not connect, retrying in 5s` a cada 5 s. É o comportamento esperado, não um erro de build.
+
+## Migrator
+
+- A partir da segunda migration, `src/main/db/migrator.ts` deve usar uma tabela de controle de versão (ex.: `schema_migrations`) para rastrear quais migrations já foram aplicadas e evitar reexecução.

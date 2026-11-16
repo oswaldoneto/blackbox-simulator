@@ -3,7 +3,7 @@
 > Propósito: Funcionalidades a desenvolver, com os critérios de aceite que guiam os testes e definem quando está pronto.
 > Atualizar quando: um caso de uso for criado, mudar ou tiver os critérios de aceite revistos.
 > Relacionados: [business_rules.md](business_rules.md), [glossary.md](glossary.md), [../engineering/domain_model.md](../engineering/domain_model.md)
-> Última atualização: 2026-11-16
+> Última atualização: 2026-11-16 · loop-001
 
 ## Índice
 
@@ -32,8 +32,9 @@ Fluxos alternativos:
   A. Motor já estava ligado ao iniciar o Blackbox Simulator: o sistema cria a sessão e inicia a coleta a partir daquele momento.
 Regras aplicadas: RN-001, RN-002, RN-003
 Critérios de aceite:
-  - Dado que o Blackbox Simulator está em execução, quando o piloto liga o motor no simulador, então o sistema inicia uma nova sessão e começa a registrar os parâmetros.
+  - Dado que o Blackbox Simulator está em execução, quando o piloto liga o motor no simulador, então o sistema inicia uma nova sessão e começa a registrar os parâmetros do conjunto inicial.
   - Dado que o motor já está ligado ao iniciar o Blackbox Simulator, quando o sistema é iniciado, então uma sessão é criada e a coleta começa imediatamente.
+  - Dado que o simulador não está em execução na mesma máquina, quando o Blackbox Simulator tenta detectar o evento de motor, então o sistema tenta reconectar silenciosamente a cada 5 segundos sem bloquear a aplicação.
 
 ---
 

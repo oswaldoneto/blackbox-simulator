@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2020", "DOM"],
+    "jsx": "react-jsx",
+    "outDir": "dist/renderer",
+    "rootDir": "src",
+    "paths": {
+      "@renderer/*": ["src/renderer/*"],
+      "@shared/*": ["src/shared/*"]
+    }
+  },
+  "include": [
+    "src/renderer/**/*",
+    "src/shared/**/*"
+  ]
+}

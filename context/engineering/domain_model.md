@@ -3,7 +3,7 @@
 > Propósito: Entidades e dados que o produto trata, e como se relacionam.
 > Atualizar quando: uma entidade, atributo ou relacionamento mudar.
 > Relacionados: [../product/glossary.md](../product/glossary.md), [../product/business_rules.md](../product/business_rules.md)
-> Última atualização: 2026-11-16
+> Última atualização: 2026-11-16 · loop-001
 
 ## Entidades
 
@@ -33,7 +33,7 @@ Descreve um tipo de grandeza que pode ser coletada do simulador.
 | unidade | string | Unidade de medida (ex.: "ft", "kt", "°", "fpm") |
 | ativo | boolean | Indica se faz parte do conjunto inicial de parâmetros coletados |
 
-Em aberto: lista definitiva de parâmetros do conjunto inicial (a definir nos ciclos de desenvolvimento).
+Conjunto inicial de parâmetros (loop-001): `altitude_msl` (Altitude MSL, ft), `airspeed_ias` (Velocidade IAS, kt), `vertical_speed` (Velocidade vertical, fpm), `heading_magnetic` (Rumo magnético, °), `pitch` (Arfagem, °), `bank` (Rolagem, °).
 
 ---
 

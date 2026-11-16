@@ -3,12 +3,13 @@
 > Propósito: Registro geral dos loops executados, com link para o report de cada um em loop_reports/.
 > Atualizar quando: um loop terminar.
 > Relacionados: [backlog.md](backlog.md), [lessons_learned.md](lessons_learned.md)
-> Última atualização: 2026-11-15 · fundação
+> Última atualização: 2026-11-16 · loop-001
 
 ## Loops executados
 
 | Loop | Data | Item do backlog | Resultado | Report |
 |------|------|-----------------|-----------|--------|
+| 001 | 2026-11-16 | UC-001 — Iniciar sessão de coleta | Entregue | [loop-001.md](loop_reports/loop-001.md) |
 
 ## Modelo de report do loop
 

@@ -3,7 +3,7 @@
 > Propósito: Diretrizes de design da interface gráfica.
 > Atualizar quando: mudar um padrão visual ou entrar um componente novo.
 > Relacionados: [usability.md](usability.md)
-> Última atualização: 2026-11-16
+> Última atualização: 2026-11-16 · loop-001
 
 ## Princípios visuais
 
@@ -46,6 +46,7 @@ Regra: estado de sessão ativa usa `color-success` + rótulo "Sessão ativa". Es
 
 - Fallback para ambas as famílias: `ui-sans-serif, system-ui, sans-serif` e `ui-monospace, monospace`.
 - Fonte monoespaçada para valores numéricos evita que os dígitos saltem lateralmente quando o valor muda.
+- **Fonte local obrigatória:** a fonte deve ser servida localmente no pacote Electron; Google Fonts (CDN externo) não é suportado em ambientes offline. Use o pacote `@ibm/plex` ou inclua os arquivos de fonte como assets estáticos.
 
 ## Componentes
 
@@ -72,12 +73,18 @@ Regra: estado de sessão ativa usa `color-success` + rótulo "Sessão ativa". Es
 - Usada em: confirmação de início/encerramento de sessão (UC-001, UC-003).
 - Posição: canto superior direito, sobreposta ao conteúdo, sem bloquear a leitura.
 - Desaparece automaticamente após 4 segundos.
-- Estados: **informativo** (`color-accent`), **sucesso** (`color-success`), **erro** (`color-error`).
+- Estados: **informativo** (`color-accent`), **sucesso** (`color-success`), **erro** (`color-error`), **warning** (fundo `color-warning`, texto `color-text-primary` (#161616) para garantir contraste WCAG AA — razão ~12:1).
+- Implementado em: UC-001.
 
 ### Indicador de estado da sessão
 - Sempre visível na barra superior da aplicação.
 - Exibe: ponto colorido + rótulo de texto ("Sessão ativa", "Encerrada", "Sem conexão").
 - Cores: ativo = `color-success`, encerrada = `color-text-secondary`, sem conexão = `color-error`.
+- Condições de estado:
+  - **Ativo:** `sessaoAtiva !== null && sessaoAtiva.status === 'ativa'` → `color-success` + "Sessão ativa"
+  - **Encerrada:** `sessaoAtiva !== null && sessaoAtiva.status !== 'ativa'` → `color-text-secondary` + "Encerrada"
+  - **Sem conexão:** `sessaoAtiva === null` → `color-error` + "Sem conexão"
+- Implementado em: UC-001.
 
 ## Layout
 
