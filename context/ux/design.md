@@ -147,7 +147,7 @@ Regra: estado de sessão ativa usa `color-success` + rótulo "Sessão ativa". Es
 - Com 12 cards, larguras de 900px ou menos podem exigir rolagem vertical para ver todos os parâmetros (consequência aceita da grade 4/2/1; ver "Em aberto e débitos de UX").
 - A 2 colunas, cada grupo ocupa duas linhas da grade e a divisão entre grupos deixa de ser visível.
 - A lista de voos e o debriefing mantêm layout de coluna única em qualquer largura.
-- As colunas da grade foram conferidas só por teste e inspeção; a conferência visual das larguras no Windows com o MSFS faz parte do roteiro manual do loop-003.
+- As colunas da grade (4/2/1) foram conferidas no teste manual no Windows com o MSFS 2024 do loop-003 (v0.3.0).
 
 ## Em aberto e débitos de UX
 

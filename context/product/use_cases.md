@@ -14,7 +14,7 @@
 | UC-003 | Encerrar sessão de coleta | Em aberto |
 | UC-004 | Selecionar voo para debriefing | Em aberto |
 | UC-005 | Visualizar dados do debriefing | Em aberto |
-| UC-006 | Coletar posição, motor e flapes | Em andamento |
+| UC-006 | Coletar posição, motor e flapes | Concluído |
 
 Status: "Em aberto" (não iniciado), "Em andamento" (loop aberto ou validação manual pendente), "Concluído" (loop encerrado).
 

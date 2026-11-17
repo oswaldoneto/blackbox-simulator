@@ -4,13 +4,15 @@ Loop: 003
 Data de início: 2026-11-17
 Item do backlog: 7 — Coletar posição, motor e flapes
 Caso de uso: UC-006
-Fase atual: Documentar (HITL-4 aprovado; aguardando o teste manual no Windows para encerrar)
+Fase atual: concluído
 
 ---
 HITL-1 aprovado em 2026-11-17
 HITL-2 aprovado em 2026-11-17
 HITL-3 aprovado em 2026-11-17
 HITL-4 aprovado em 2026-11-17 (encerramento condicionado ao teste manual no Windows)
+Teste manual no Windows com MSFS 2024 aprovado em 2026-11-17 (v0.3.0): início automático da sessão, 12 cards, coordenadas, controles, flapes, N/A, grade e migração sobre a v0.2.0
+Loop encerrado em 2026-11-17
 
 ## 1.1 Especificação de negócio
 

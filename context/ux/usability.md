@@ -43,7 +43,7 @@ Débitos de acessibilidade (revisão do loop-002, sem decisão):
 
 ### Painel de tempo real (UC-002)
 
-- Cadência: os valores são atualizados a cada 1 s, com o valor lido do simulador. Atraso máximo aceitável entre o simulador e o painel: 2 s (a medir no roteiro manual no Windows com o MSFS).
+- Cadência: os valores são atualizados a cada 1 s, com o valor lido do simulador. Atraso máximo aceitável entre o simulador e o painel: 2 s (conferido nos testes manuais no Windows com o MSFS 2024 dos loops 002 e 003).
 - Limite de sem sinal: se a conexão com o simulador cair durante a sessão ou se passarem 2 s sem dados novos, os valores viram "—" e o painel mostra o aviso. Os valores voltam sozinhos quando os dados retornam. Cards N/A continuam "N/A".
 - Não aplicável (UC-006, RN-007): o parâmetro que a aeronave não possui mostra "N/A" a sessão toda, com a unidade mantida. Flapes são N/A em aeronave sem flapes; Mistura é N/A em motor que não é a pistão. Um 0 válido (flapes recolhidos, RPM 0) aparece como 0, não como N/A.
 - Textos do painel:
