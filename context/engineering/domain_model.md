@@ -3,7 +3,7 @@
 > Propósito: Entidades e dados que o produto trata, e como se relacionam.
 > Atualizar quando: uma entidade, atributo ou relacionamento mudar.
 > Relacionados: [../product/glossary.md](../product/glossary.md), [../product/business_rules.md](../product/business_rules.md)
-> Última atualização: 2026-11-16 · loop-001
+> Última atualização: 2026-11-16 · loop-002
 
 ## Entidades
 
@@ -33,7 +33,7 @@ Descreve um tipo de grandeza que pode ser coletada do simulador.
 | unidade | string | Unidade de medida (ex.: "ft", "kt", "°", "fpm") |
 | ativo | boolean | Indica se faz parte do conjunto inicial de parâmetros coletados |
 
-Conjunto inicial de parâmetros (loop-001): `altitude_msl` (Altitude MSL, ft), `airspeed_ias` (Velocidade IAS, kt), `vertical_speed` (Velocidade vertical, fpm), `heading_magnetic` (Rumo magnético, °), `pitch` (Arfagem, °), `bank` (Rolagem, °).
+Conjunto inicial de parâmetros (loop-001, confirmado no loop-002 com os mesmos rótulos): `altitude_msl` (Altitude MSL, ft), `airspeed_ias` (Velocidade IAS, kt), `vertical_speed` (Velocidade vertical, fpm), `heading_magnetic` (Rumo magnético, °), `pitch` (Arfagem, °), `bank` (Rolagem, °).
 
 ---
 
@@ -48,6 +48,17 @@ Valor de um parâmetro em um instante específico de uma sessão.
 | valor | float | Valor numérico medido naquele instante |
 
 Frequência de coleta: 1 leitura por segundo por parâmetro ativo (revisável nos ciclos de desenvolvimento).
+
+O `valor` é gravado bruto, como vem do SimConnect. Correções de sinal para exibição (arfagem positiva com o nariz para cima; rolagem em valor absoluto com E/D) são feitas só no renderer (decisão do HITL-1 do loop-002; o sentido real ainda será confirmado no Windows com MSFS).
+
+## Tipos de transporte
+
+Não são entidades do domínio nem são persistidos. Existem só para levar dados do main ao renderer pelo IPC (ver ADR-007 em [architecture.md](architecture.md)) e vivem em `src/shared/types.ts`.
+
+| Tipo | Forma | Uso |
+|------|-------|-----|
+| EstadoConexao | `'conectado' \| 'desconectado'` | Estado da conexão do main com o SimConnect; base do estado "sem sinal" do painel |
+| PacoteDeLeituras | `{ sessaoId, timestamp, leituras: { parametroId, valor }[] }` | Leituras de um ciclo de coleta (1 s), enviadas ao renderer só com sessão ativa, num caminho separado da gravação das LeituraDeParâmetro no banco |
 
 ## Relacionamentos
 

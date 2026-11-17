@@ -3,17 +3,19 @@
 > Propósito: Funcionalidades a desenvolver, com os critérios de aceite que guiam os testes e definem quando está pronto.
 > Atualizar quando: um caso de uso for criado, mudar ou tiver os critérios de aceite revistos.
 > Relacionados: [business_rules.md](business_rules.md), [glossary.md](glossary.md), [../engineering/domain_model.md](../engineering/domain_model.md)
-> Última atualização: 2026-11-16 · loop-001
+> Última atualização: 2026-11-16 · loop-002
 
 ## Índice
 
 | ID | Nome | Status |
 |----|------|--------|
-| UC-001 | Iniciar sessão de coleta | Em aberto |
-| UC-002 | Visualizar parâmetros em tempo real | Em aberto |
+| UC-001 | Iniciar sessão de coleta | Concluído |
+| UC-002 | Visualizar parâmetros em tempo real | Em andamento |
 | UC-003 | Encerrar sessão de coleta | Em aberto |
 | UC-004 | Selecionar voo para debriefing | Em aberto |
 | UC-005 | Visualizar dados do debriefing | Em aberto |
+
+Status: "Em aberto" (não iniciado), "Em andamento" (loop aberto ou validação manual pendente), "Concluído" (loop encerrado).
 
 ## Casos de uso
 
@@ -41,16 +43,24 @@ Critérios de aceite:
 UC-002
 Nome: Visualizar parâmetros em tempo real
 Ator: Piloto
-Objetivo: Acompanhar os parâmetros de voo em uma janela separada enquanto o voo está em andamento.
-Pré-condições: Uma sessão de coleta está ativa (UC-001 foi concluído).
+Objetivo: Acompanhar os parâmetros de voo no painel de tempo real, na janela do Blackbox Simulator, enquanto o voo está em andamento.
+Pré-condições: O Blackbox Simulator está em execução. O painel de tempo real exige uma sessão de coleta ativa (UC-001 foi concluído).
 Fluxo principal:
-  1. O sistema exibe os parâmetros do conjunto inicial em uma janela separada do simulador.
-  2. Os valores são atualizados continuamente enquanto a sessão está ativa.
-Fluxos alternativos: —
-Regras aplicadas: RN-002, RN-006
+  1. Quando a sessão fica ativa, o sistema exibe sozinho o painel de tempo real na área principal da própria janela do app, sem ação do piloto e sem segunda janela.
+  2. O painel mostra o valor atual de cada parâmetro do conjunto inicial (Altitude MSL, Velocidade IAS, Velocidade vertical, Rumo magnético, Arfagem, Rolagem).
+  3. A cada 1 s, mesma cadência da coleta, o painel atualiza os valores com a leitura do simulador, enquanto a sessão está ativa.
+Fluxos alternativos:
+  A. Sem sessão ativa: no lugar do painel, o sistema exibe a orientação "Inicie o simulador e ligue o motor para começar".
+  B. Sessão encerrada: o painel mantém os últimos valores congelados e exibe o aviso "Sessão encerrada". Só ocorre no uso real depois do UC-003. Se a sessão encerrar com a conexão caída, os valores congelados ficam como "—", porque não há valor confiável para manter (decisão do HITL-4 do loop-002).
+  C. Sem sinal durante a sessão (conexão com o simulador perdida, ou 2 s sem leitura nova com a conexão aberta): os valores viram "—" e o painel exibe o aviso "Sem sinal do simulador". Quando as leituras voltam, os valores voltam e o aviso some.
+Fora do escopo deste caso de uso: maximizar e reduzir cards do painel (vira item do backlog).
+Regras aplicadas: RN-001, RN-002, RN-003, RN-004, RN-006
 Critérios de aceite:
-  - Dado que uma sessão está ativa, quando o piloto abre o painel do Blackbox Simulator, então os parâmetros do conjunto inicial são exibidos em uma janela separada com valores atualizados.
-  - Dado que o painel está aberto, quando um novo valor de parâmetro chega do simulador, então o painel é atualizado sem que o desempenho do simulador seja afetado perceptivelmente.
+  - Dado que uma sessão fica ativa, quando o Blackbox Simulator está aberto, então o painel de tempo real aparece sozinho na área principal da janela do app, sem ação do piloto, com os parâmetros do conjunto inicial.
+  - Dado que o painel está exibido, quando uma nova leitura chega do simulador, então o painel é atualizado a cada 1 s, com atraso máximo de 2 s entre o simulador e o painel, sem enviar comandos nem alterar o estado do simulador.
+  - Dado que não há sessão ativa, quando o piloto olha a janela do app, então o sistema exibe a orientação "Inicie o simulador e ligue o motor para começar".
+  - Dado que a sessão foi encerrada, quando o painel deixa de receber leituras, então os últimos valores ficam congelados e o painel exibe o aviso "Sessão encerrada".
+  - Dado que uma sessão está ativa, quando a conexão com o simulador cai ou passam 2 s sem leitura nova, então os valores viram "—" e o painel exibe o aviso "Sem sinal do simulador"; quando as leituras voltam, os valores voltam a ser exibidos.
 
 ---
 

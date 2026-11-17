@@ -3,7 +3,7 @@
 > Propósito: Regras de negócio reutilizáveis entre casos de uso, cada uma com um identificador RN-NNN.
 > Atualizar quando: uma regra for criada, alterada ou deixar de valer.
 > Relacionados: [glossary.md](glossary.md)
-> Última atualização: 2026-11-16
+> Última atualização: 2026-11-16 · loop-002
 
 ## Regras
 
@@ -12,7 +12,7 @@
 RN-001
 Nome: Coleta local
 Descrição: A coleta de parâmetros exige que o simulador de voo esteja rodando na mesma máquina que o Blackbox Simulator. Conexão remota não é suportada.
-Aplica-se a: UC-001
+Aplica-se a: UC-001, UC-002
 
 ---
 
@@ -26,14 +26,14 @@ Aplica-se a: UC-001, UC-002, UC-005
 RN-003
 Nome: Início automático da sessão
 Descrição: A sessão inicia automaticamente quando o motor da aeronave é ligado no simulador. Se o Blackbox Simulator for iniciado com o motor já em funcionamento, a sessão começa a partir daquele momento.
-Aplica-se a: UC-001
+Aplica-se a: UC-001, UC-002
 
 ---
 
 RN-004
 Nome: Encerramento automático da sessão
 Descrição: A sessão encerra automaticamente quando o motor da aeronave é desligado no simulador.
-Aplica-se a: UC-003
+Aplica-se a: UC-002, UC-003
 
 ---
 

@@ -4,7 +4,7 @@ Loop: 002
 Data de início: 2026-11-16
 Item do backlog: 2 — Visualizar parâmetros em tempo real
 Caso de uso: UC-002
-Fase atual: Documentar
+Fase atual: Documentar (HITL-4 aprovado; aguardando o teste manual no Windows para encerrar)
 
 ---
 HITL-1 aprovado em 2026-11-16
@@ -12,6 +12,7 @@ HITL-2 aprovado em 2026-11-16
 HITL-3 retorno: corrigir 3 itens menores de usabilidade e qualidade (aviso de sem sinal, erro nas consultas iniciais, anúncio duplo) — 2026-11-16
 HITL-2 (2ª rodada) aprovado em 2026-11-16, com revisão curta (funcionalidade e usabilidade)
 HITL-3 aprovado em 2026-11-16
+HITL-4 aprovado em 2026-11-16 (encerramento condicionado ao teste manual no Windows, conforme o HITL-1)
 
 
 ## 1.1 Especificação de negócio
@@ -317,6 +318,92 @@ Não bloqueantes (usabilidade):
 - Os demais itens menores da revisão viram débito técnico.
 - Teste manual no Windows: commitar o loop numa branch `loop-002` (sem tocar na `main`), subir e gerar o instalador pelo workflow manual, como artefato.
 
+### 4. Documentação (2026-11-16)
+
+- 4.1 Produto: UC-002 reescrito (fluxo, 3 fluxos alternativos, 5 critérios, status "Em andamento"); glossário com "Painel de tempo real" e "Sem sinal"; product.md com os itens em aberto resolvidos (cadência e atraso, conjunto inicial). business_rules.md sem mudança. Perguntas: RN-007 para cadência e atraso; incluir UC-002 em RN-001, RN-003 e RN-004; vocabulário de status dos UCs; sessão encerrada com conexão caída congela com "—".
+- 4.2 Engenharia: ADR-007, diretriz de estado no renderer reescrita, seção "Canais IPC"; code_conventions.md com estilos e fontes, utilitários em components/, kebab-case, Playwright, guarda `isDestroyed`, consultas iniciais com `.catch`; domain_model.md com conjunto inicial confirmado e tipos de transporte. Em aberto: aliases de import, Prettier, IDs dos parâmetros em shared/.
+- 4.3 ADLC: débito técnico consolidado (27 itens), "Contexto atualizado", lições LL-007 a LL-011, backlog (item 2 concluído, item 6 "Maximizar card de parâmetro"). Pergunta: onde registrar a regra de espelhamento .bob/.claude (LL-011).
+- 4.4 UX: design.md com painel de tempo real, aviso do painel, barra com 4 estados, grade 3x2, fonte @fontsource; usability.md com textos, formatação, política de leitor de tela; débitos de UX em aberto.
+
+Instalador para o teste manual: gerado pelo workflow na branch `loop-002` (execução 43987626820, artefato `instalador-windows`).
+
+### Decisões do HITL-4 (2026-11-16)
+
+- UC-002 incluído no "Aplica-se a" de RN-001, RN-003 e RN-004, e essas regras em "Regras aplicadas" do UC-002. Sem RN-007.
+- Status dos UCs: "Em aberto", "Em andamento", "Concluído". UC-001 passa a "Concluído"; UC-002 fica "Em andamento" até o teste no Windows.
+- Sessão encerrada com a conexão caída congela com "—": aceito e registrado no UC-002.
+- LL-011 aponta para a seção "Ferramentas" do ADLC e para o AGENTS.md.
+
+## Débito técnico do loop
+
+Lista única dos itens que foram para débito (decisões do HITL-2 e do HITL-3, 1ª e 2ª rodadas). Os itens corrigidos na 2ª rodada (aviso de sem sinal, erro nas consultas iniciais, anúncio duplo, condição de corrida em `use-active-session.ts`) não estão aqui.
+
+Funcionalidade e estados
+1. `session:ended` sem emissor no main: o estado "Sessão encerrada" só ocorre no uso real com o UC-003.
+2. Na montagem, a conexão começa como desconectado até a consulta responder: "—" e "Sem conexão" por um instante.
+3. Sessão encerrada com a conexão caída congela com "—" em vez dos últimos valores (caso não coberto pelas decisões).
+4. `getActiveSessao` com erro e sessão já ativa: a tela mostra a orientação de "sem sessão" até o próximo evento, enquanto a coleta continua.
+5. `getConnectionState` com erro e simulador já conectado: fica "desconectado" até a próxima transição.
+6. "Não foi possível carregar os parâmetros." sem orientação e sem nova tentativa automática.
+7. Velocidade vertical: `Math.round` assimétrico no zero (+5 fpm vira "+10", −5 fpm vira "0").
+
+Usabilidade e acessibilidade
+8. Valores congelados com o mesmo estilo dos valores ao vivo.
+9. Notificação cobre o card do canto superior direito por 4 s.
+10. Contraste da notificação `success` (branco sobre #24A148, cerca de 3,3:1; vem do loop-001).
+11. StatusBar: `aria-label` em `<div>` sem role e sem região viva; perda de conexão não é anunciada.
+12. Possível leitura em dobro nos cards (`role="group"` com `aria-label` e texto interno).
+13. Estado vazio sem o motivo explícito.
+14. Avisos com `role="status"` montados já com o texto podem não ser anunciados por alguns leitores de tela (região viva sempre montada seria o mais seguro).
+15. "Sem sinal do simulador" não diz o que o piloto pode fazer.
+16. Erro, sem sinal e aviso informativo usam o mesmo estilo neutro, sem `color-error` nem `color-warning`.
+
+Qualidade e arquitetura
+17. Slugs dos parâmetros escritos à mão em três lugares (main e renderer), fora de `shared/`.
+18. Imports relativos em vez dos aliases `@main/`, `@renderer/` e `@shared/` (anterior ao loop).
+19. `ParameterBatchPayload` poderia ser `Omit<PacoteDeLeituras, 'sessaoId'>`.
+20. Filtro `ativo` repetido no renderer (a regra mora no main).
+21. Estilos do indicador dentro de `realtime-panel.css`; estilo misto (CSS em arquivo e inline) sem regra explícita.
+22. Parâmetro sem uso em `registerSessionHandlers` (anterior ao loop).
+23. Ramos `false` das constantes de sinal (`PITCH_POSITIVO_NARIZ_PARA_BAIXO`, `BANK_POSITIVO_PARA_ESQUERDA`) sem teste.
+24. Convenção do Prettier contraditória e formatador não aplicado (sem `.prettierrc` nem script).
+25. `tsconfig.json` raiz sem `jsx`: `tsc -p tsconfig.json` acusa erros nos `.tsx` (anterior ao loop).
+26. Fontsource importa todos os subsets; importar só latin reduziria o instalador.
+27. Playwright sem configuração nem testes; layout e atraso validados à mão (adiado no HITL-1).
+
+Pendência antes do encerramento (não é débito; decidida no HITL-1): roteiro manual no Windows com MSFS para confirmar os sinais de arfagem e rolagem, medir o atraso real (limite de 2 s) e conferir as colunas da grade.
+
 ## Contexto atualizado
 
+Resumo do que a fase Documentar atualiza, por área, conforme os impactos propostos nas etapas 1.1, 1.2 e 3 e as decisões dos HITL. As etapas 4.1, 4.2 e 4.4 rodam em paralelo com esta; o resultado de cada uma é conferido no HITL-4.
+
+### 4.1 Produto
+- `use_cases.md` (UC-002): fluxo e CA-002-1 alinhados (painel na própria janela do app, aparece sozinho quando a sessão fica ativa, sem "janela separada"); CA-002-2 com número (cadência de 1 s, valor da leitura do SimConnect, atraso máximo de 2 s); fluxos e critérios de sem sessão, sessão encerrada e sem sinal (conexão perdida ou 2 s sem dados); maximização fora do escopo; RN-001, RN-003 e RN-004 avaliadas em "Regras aplicadas".
+- `glossary.md`: "Painel de tempo real" e "Sem sinal".
+- `product.md`: itens em aberto "conjunto inicial de parâmetros" e "limiar de atraso" resolvidos.
+- `business_rules.md`: avaliar RN-007 se a cadência ou o limiar virar regra reutilizável.
+
+### 4.2 Engenharia
+- `architecture.md`: ADR-007 (leituras em tempo real por push, da memória, só com sessão ativa; estado de conexão por push e invoke); ajuste da diretriz "o renderer não mantém estado de sessão local" (valores congelados como estado de exibição temporário); novos canais `parameter:list-active`, `parameter:readings`, `connection:state-changed` e `connection:get-state`.
+- `code_conventions.md`: CSS em arquivo para media queries; utilitários de formatação e estado ao lado do componente; arquivos novos em kebab-case, existentes em PascalCase não renomeados; guarda `!win.isDestroyed()` nos emissores; fontes locais via pacote npm; Playwright adiado.
+- `domain_model.md`: nenhum impacto na estrutura.
+
+### 4.3 ADLC
+- `loop_reports/loop-002.md`: "Débito técnico do loop", "Contexto atualizado" e "Lições".
+- `lessons_learned.md`: LL-007 a LL-011.
+- `backlog.md`: item 2 movido para Concluídos; "Em andamento" vazio; item 6 (maximizar card de parâmetro, UC a definir) incluído em Próximos.
+- `loop_report.md`: linha do loop-002 adicionada no encerramento, após o HITL-4.
+
+### 4.4 UX
+- `design.md`: grade 3x2 com a ordem definida (Altitude MSL, IAS, Velocidade vertical; Rumo magnético, Arfagem, Rolagem) e uma coluna abaixo de 600 px; estados do painel (sem sessão, ativa, sem sinal, encerrada) e seus avisos; "—" em `color-text-secondary`; estados da barra de status ("Aguardando motor"; "Sem conexão" vence "Sessão ativa" e "Encerrada"); IBM Plex local; maximização fora do escopo.
+- `usability.md`: rótulos finais; texto do estado vazio ("Inicie o simulador e ligue o motor para começar"); avisos "Sem sinal do simulador", "Sessão encerrada" e "Não foi possível carregar os parâmetros."; regras de formatação dos valores; política de leitor de tela (cards sem `aria-live`, anúncio único de "Sessão encerrada" pela Notification).
+
 ## Lições
+
+Ver `context/adlc/lessons_learned.md` (LL-007 a LL-011).
+
+- LL-007: decisões humanas levantadas na 1.1 e perguntadas antes da 1.2.
+- LL-008: "Em andamento" no backlog só com loop aberto.
+- LL-009: 2ª rodada de revisão curta, só com os revisores envolvidos.
+- LL-010: validações que dependem do simulador real precisam de roteiro manual no Windows.
+- LL-011: loop executado no Claude Code com agentes espelhando o .bob.

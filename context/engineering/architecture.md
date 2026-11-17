@@ -3,7 +3,7 @@
 > Propósito: Visão geral da arquitetura no modelo C4, diretrizes arquiteturais e registro das decisões.
 > Atualizar quando: uma decisão arquitetural for tomada ou revista.
 > Relacionados: [domain_model.md](domain_model.md), [code_conventions.md](code_conventions.md)
-> Última atualização: 2026-11-16 · instalador Windows
+> Última atualização: 2026-11-16 · loop-002
 
 ## Visão geral
 
@@ -54,7 +54,21 @@ C4Container
 - O main opera em modo passivo em relação ao simulador: somente leitura, nunca envia comandos (RN-006).
 - A coleta de parâmetros ocorre em intervalo fixo de 1 segundo via polling ao SimConnect.
 - O banco SQLite fica em `%APPDATA%\BlackboxSimulator\data.db` para garantir persistência entre atualizações do instalador. Esse caminho é resolvido por `app.getPath('appData')` mais a pasta fixa `BlackboxSimulator`, e por isso não depende do nome do app nem do instalador.
-- O renderer não mantém estado de sessão local: busca via IPC ao main sempre que precisar.
+- O renderer não mantém estado de sessão próprio: a fonte da verdade sobre sessão, conexão e leituras é o main, consultado por invoke ou recebido por push. O renderer pode guardar estado de exibição temporário, derivado do que o main enviou, enquanto a tela estiver aberta: a sessão encerrada, os últimos valores congelados e o indicador `semDados` (ADR-007). Esse estado não é persistido nem enviado de volta ao main.
+
+## Canais IPC
+
+Todos definidos em `src/shared/ipc-channels.ts` e expostos pelo preload (ADR-005).
+
+| Canal | Tipo | Direção | Carga | Desde |
+|-------|------|---------|-------|-------|
+| `session:get-active` | invoke | renderer → main | retorna `Sessao \| null` | loop-001 |
+| `session:started` | push | main → renderer | `Sessao` | loop-001 |
+| `session:ended` | push | main → renderer | `Sessao` (a função emissora existe, mas nada a chama até o UC-003) | loop-001 |
+| `parameter:list-active` | invoke | renderer → main | retorna `ParametroDeVoo[]` com `ativo = true` (RN-002) | loop-002 |
+| `parameter:readings` | push | main → renderer | `PacoteDeLeituras`, um por ciclo de coleta (1 s), só com sessão ativa | loop-002 |
+| `connection:get-state` | invoke | renderer → main | retorna `EstadoConexao` | loop-002 |
+| `connection:state-changed` | push | main → renderer | `EstadoConexao`, só nas transições | loop-002 |
 
 ## Decisões arquiteturais (ADR)
 
@@ -107,6 +121,23 @@ Decisão: Gerar o instalador NSIS (`BlackboxSimulator-Setup-<versão>.exe`, x64)
 Consequências: Cada versão publicada sai de uma tag, e o instalador é sempre gerado num Windows real. O instalador não é assinado, então o Windows SmartScreen avisa na primeira execução; tirar o aviso exige um certificado de assinatura de código.
 
 ---
+
+ADR-007
+Status: aceita (loop-002)
+Contexto: O painel de tempo real (UC-002) precisa mostrar os parâmetros do conjunto inicial com cadência de 1 s e atraso máximo de 2 s entre o simulador e a tela, sem afetar o simulador (RN-006). O painel também precisa saber se há conexão com o SimConnect para mostrar o estado "sem sinal".
+Decisão:
+- Leituras por push: a cada `simObjectData`, o `simconnect-client` emite um lote (`onParameterBatch`); o `collection-service` repassa o lote como `PacoteDeLeituras` (`onLeituras`) no mesmo ciclo da coleta, a partir da memória, num caminho separado da gravação no SQLite (`onParameterReading` → `inserirLeitura`), sem timer próprio. O pacote só é emitido com sessão ativa e leva o `sessaoId`. O main o envia pelo canal `parameter:readings`.
+- Estado de conexão por push mais invoke inicial: o main emite `connection:state-changed` só nas transições (`conectado` ↔ `desconectado`); o renderer consulta `connection:get-state` na montagem para não perder o estado vigente. Se um evento chegar antes da resposta da consulta, a resposta é descartada.
+- O catálogo de parâmetros exibidos vem de `parameter:list-active` (filtro `ativo = 1` no main, RN-002).
+- Limite de 2 s sem dados no renderer: com sessão ativa, se passarem `SEM_DADOS_LIMITE_MS` (2000 ms) sem pacote novo, o painel marca `semDados` e troca os valores por "—"; volta ao receber pacote. Conexão perdida com sessão ativa também zera os valores. Sessão encerrada congela os últimos valores e ignora pacotes de outra sessão; nova sessão zera.
+- A precedência dos estados do painel fica em `derivePanelState({ sessao, conexao, semDados })`: sem sessão, encerrada, sem sinal, ativa.
+Consequências: Uma mensagem IPC por segundo com 6 números, sem custo relevante. O valor exibido é o lido do SimConnect, não o gravado, então uma falha de gravação não aparece no painel. O limite de 2 s mora no renderer e cobre o caso de conexão aberta sem dados (menu, sem aeronave). Valores congelados e `semDados` são estado de exibição temporário no renderer (ver Diretrizes). O atraso real e as colunas da grade ainda dependem do roteiro manual no Windows com MSFS.
+
+---
+
+## Em aberto
+
+- Identificadores dos parâmetros (slugs como `altitude_msl`) escritos à mão em três lugares, no main e no renderer (ordem de exibição e formatação), fora de `shared/`. Levantado na revisão do loop-002 (3.4); decisão humana pendente sobre centralizá-los em `shared/`.
 
 ## Modelo de ADR
 

@@ -3,7 +3,7 @@
 > Propósito: Diretrizes de design da interface gráfica.
 > Atualizar quando: mudar um padrão visual ou entrar um componente novo.
 > Relacionados: [usability.md](usability.md)
-> Última atualização: 2026-11-16 · loop-001
+> Última atualização: 2026-11-16 · loop-002
 
 ## Princípios visuais
 
@@ -46,15 +46,38 @@ Regra: estado de sessão ativa usa `color-success` + rótulo "Sessão ativa". Es
 
 - Fallback para ambas as famílias: `ui-sans-serif, system-ui, sans-serif` e `ui-monospace, monospace`.
 - Fonte monoespaçada para valores numéricos evita que os dígitos saltem lateralmente quando o valor muda.
-- **Fonte local obrigatória:** a fonte deve ser servida localmente no pacote Electron; Google Fonts (CDN externo) não é suportado em ambientes offline. Use o pacote `@ibm/plex` ou inclua os arquivos de fonte como assets estáticos.
+- **Fonte local obrigatória:** a fonte deve ser servida localmente no pacote Electron; Google Fonts (CDN externo) não é suportado em ambientes offline. Implementado no loop-002 com os pacotes `@fontsource/ibm-plex-sans` e `@fontsource/ibm-plex-mono`, importados pelo renderer.
+- Valores de parâmetro usam `font-variant-numeric: tabular-nums` além da fonte monoespaçada.
 
 ## Componentes
 
 ### Indicador de parâmetro
 - Usado em: painel de tempo real (UC-002).
-- Exibe: rótulo do parâmetro (rótulo), valor atual (valor de parâmetro), unidade (rótulo).
-- Estados: **normal** (texto primário), **sem sinal** (valor substituído por "—", texto desabilitado).
-- Pode ser maximizado para ocupar o painel inteiro (princípio "Foco por demanda").
+- Estrutura: card com fundo `color-surface`, borda `color-border`, raio 4px, padding 16px; rótulo do parâmetro no topo e, abaixo, valor e unidade alinhados pela linha de base.
+- Exibe: rótulo do parâmetro (tipografia Rótulo, `color-text-secondary`), valor atual (Valor de parâmetro, `color-text-primary`), unidade como rótulo à parte (Rótulo, `color-text-secondary`). O valor segue as regras de formatação de [usability.md](usability.md).
+- Estados: **normal** (valor em `color-text-primary`), **sem sinal** (valor substituído por "—" em `color-text-secondary`, para cumprir o contraste de 4,5:1; decisão do HITL-1 do loop-002, que substitui o antigo "texto desabilitado").
+- Valores congelados (sessão encerrada) usam o mesmo estilo dos valores ao vivo; a diferença é dada pelo aviso do painel.
+- Maximização: prevista pelo princípio "Foco por demanda", mas fora do escopo do loop-002; virou item do backlog.
+- Implementado em: UC-002 (`parameter-indicator.tsx`).
+
+### Painel de tempo real
+- Usado em: área principal da janela do app (UC-002). Não há segunda janela.
+- Aparece sozinho quando há sessão (ativa ou encerrada); sem sessão, a área principal mostra a mensagem de orientação.
+- Estrutura: aviso do painel (quando houver) acima da grade de indicadores de parâmetro.
+- Estados (precedência: sem sessão, depois encerrada, depois sem sinal, depois ativa):
+  - **Sem sessão:** painel não é exibido; a área principal mostra "Inicie o simulador e ligue o motor para começar".
+  - **Ativa:** grade com os valores ao vivo, atualizados a cada ciclo de 1 s.
+  - **Encerrada:** últimos valores congelados e aviso "Sessão encerrada".
+  - **Sem sinal:** conexão com o simulador perdida durante a sessão ou 2 s sem dados novos; todos os valores viram "—" e aparece o aviso "Sem sinal do simulador". Os valores voltam quando os dados retornam.
+  - **Erro ao carregar parâmetros:** se a consulta dos parâmetros ativos falhar, a grade é substituída pelo aviso "Não foi possível carregar os parâmetros."
+- Enquanto a consulta inicial não responde, a área principal mostra "Aguardando..." em `color-text-secondary`.
+- Implementado em: UC-002 (`realtime-panel.tsx`, `realtime-panel.css`).
+
+### Aviso do painel
+- Usado em: painel de tempo real (UC-002), para "Sessão encerrada", "Sem sinal do simulador" e "Não foi possível carregar os parâmetros.".
+- Posição: acima da grade, com 16px de espaço abaixo.
+- Estilo: tipografia Corpo, `color-text-secondary`, sem fundo nem ícone. Erro, sem sinal e aviso informativo usam o mesmo estilo neutro (ver "Em aberto").
+- Implementado em: UC-002.
 
 ### Card de sessão
 - Usado em: lista de voos (UC-004).
@@ -78,13 +101,15 @@ Regra: estado de sessão ativa usa `color-success` + rótulo "Sessão ativa". Es
 
 ### Indicador de estado da sessão
 - Sempre visível na barra superior da aplicação.
-- Exibe: ponto colorido + rótulo de texto ("Sessão ativa", "Encerrada", "Sem conexão").
-- Cores: ativo = `color-success`, encerrada = `color-text-secondary`, sem conexão = `color-error`.
-- Condições de estado:
-  - **Ativo:** `sessaoAtiva !== null && sessaoAtiva.status === 'ativa'` → `color-success` + "Sessão ativa"
-  - **Encerrada:** `sessaoAtiva !== null && sessaoAtiva.status !== 'ativa'` → `color-text-secondary` + "Encerrada"
-  - **Sem conexão:** `sessaoAtiva === null` → `color-error` + "Sem conexão"
-- Implementado em: UC-001.
+- Exibe: ponto colorido + rótulo de texto ("Sem conexão", "Sessão ativa", "Encerrada", "Aguardando motor").
+- Estados, em ordem de precedência (o primeiro que se aplica vence):
+  - **Sem conexão:** simulador não acessível (`conexao === 'desconectado'`) → `color-error` + "Sem conexão". Vence os demais, inclusive "Sessão ativa" (queda durante o voo) e "Encerrada".
+  - **Ativo:** conectado e `sessaoAtiva.status === 'ativa'` → `color-success` + "Sessão ativa".
+  - **Encerrada:** conectado e sessão com status diferente de `'ativa'` → `color-text-secondary` + "Encerrada".
+  - **Aguardando motor:** conectado e sem sessão → `color-text-secondary` + "Aguardando motor".
+- "Sem conexão" se refere só à conexão com o simulador; não é mais usado para "sem sessão" (loop-002, HITL-1).
+- Os 2 s sem dados com a conexão aberta não alteram a barra (continua "Sessão ativa"); o estado aparece no aviso do painel.
+- Implementado em: UC-001; estados revistos no UC-002.
 
 ## Layout
 
@@ -93,9 +118,12 @@ Regra: estado de sessão ativa usa `color-success` + rótulo "Sessão ativa". Es
 - Área de conteúdo abaixo da barra, sem menu lateral fixo.
 
 ### Tela: painel de tempo real (UC-002)
-- Grade de indicadores de parâmetro em N colunas (a definir conforme o conjunto inicial de parâmetros).
-- Cada indicador ocupa um card; qualquer card pode ser maximizado para tela cheia.
-- Maximização: o card ocupa toda a área de conteúdo; botão "Reduzir" retorna à grade.
+- Ocupa a área principal da janela do app.
+- Grade de 3 colunas e 2 linhas (3x2), com 16px de espaço entre cards, para os 6 parâmetros do conjunto inicial:
+  - Linha 1: Altitude MSL, Velocidade IAS, Velocidade vertical.
+  - Linha 2: Rumo magnético, Arfagem, Rolagem.
+- Cada indicador ocupa um card.
+- Maximização de card (card ocupando a área de conteúdo, com botão "Reduzir" para voltar à grade): fora do escopo do loop-002; item do backlog.
 
 ### Tela: lista de voos (UC-004)
 - Lista vertical de cards de sessão em ordem cronológica inversa.
@@ -107,7 +135,15 @@ Regra: estado de sessão ativa usa `color-success` + rótulo "Sessão ativa". Es
 - Qualquer gráfico pode ser maximizado para ocupar toda a área de conteúdo.
 
 ### Comportamento em janelas menores
-- A grade do painel de tempo real colapsa para uma coluna quando a largura for inferior a 600px.
+- A grade do painel de tempo real colapsa para uma coluna quando a largura for inferior a 600px, mantendo a ordem dos parâmetros.
 - A lista de voos e o debriefing mantêm layout de coluna única em qualquer largura.
+- As colunas da grade foram conferidas só por teste e inspeção; a conferência visual no Windows com o MSFS faz parte do roteiro manual do loop-002.
 
-Em aberto: número de colunas da grade do painel de tempo real (depende da definição do conjunto inicial de parâmetros).
+## Em aberto e débitos de UX
+
+Pontos levantados na revisão de usabilidade do loop-002 que ficaram como débito e dependem de decisão humana:
+
+- **Cor dos avisos do painel:** erro ("Não foi possível carregar os parâmetros."), sem sinal e aviso informativo usam o mesmo estilo neutro; não está decidido se erro e sem sinal devem usar `color-error` ou `color-warning`.
+- **Valores congelados:** na sessão encerrada, os valores têm o mesmo estilo dos valores ao vivo; não está decidido se devem ter tratamento visual próprio.
+- **Notificação sobre o card:** a notificação do canto superior direito cobre o card desse canto por 4 s.
+- **Contraste da notificação `success`:** texto branco sobre `#24A148` dá cerca de 3,3:1, abaixo dos 4,5:1 de usability.md (vem do loop-001).

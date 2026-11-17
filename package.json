@@ -1,6 +1,6 @@
 {
   "name": "blackbox-simulator",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Coleta, registra e visualiza parâmetros de voo do Microsoft Flight Simulator 2024.",
   "main": "dist/main/main/index.js",
   "engines": {

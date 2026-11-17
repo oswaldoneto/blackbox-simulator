@@ -3,7 +3,7 @@
 > Propósito: Visão de alto nível do produto: o que é, que problema resolve e para quem.
 > Atualizar quando: mudar o problema, o público ou o escopo do produto.
 > Relacionados: [glossary.md](glossary.md)
-> Última atualização: 2026-11-16
+> Última atualização: 2026-11-16 · loop-002
 
 ## Visão
 
@@ -42,7 +42,8 @@ Transformar os dados brutos do simulador em informação acionável, permitindo 
 
 - Após um voo completo (ex.: circuito de tráfego padrão), todos os parâmetros do conjunto inicial estão disponíveis para revisão sem perda de dados.
 - O piloto consegue identificar, na análise pós-voo, ao menos um ponto específico de melhoria por sessão.
-- A visualização em tempo real não introduz atraso perceptível na experiência do simulador.
+- A visualização em tempo real atualiza os valores a cada 1 s, com atraso máximo de 2 s entre o simulador e o painel, sem interferir no simulador.
 
-Em aberto: limiar numérico aceitável de atraso na visualização em tempo real.
-Em aberto: definição do conjunto inicial de parâmetros a coletar.
+## Conjunto inicial de parâmetros
+
+Definido no loop-001 e confirmado no HITL-1 do loop-002: Altitude MSL (ft), Velocidade IAS (kt), Velocidade vertical (fpm), Rumo magnético (°), Arfagem (°) e Rolagem (°). Os identificadores técnicos estão em [../engineering/domain_model.md](../engineering/domain_model.md).
