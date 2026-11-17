@@ -21,7 +21,8 @@ vi.mock('fs', async (importOriginal) => {
   return { ...actual, mkdirSync: vi.fn() }
 })
 
-import { inserirLeitura, buscarUltimaLeituraEm } from './reading-repository'
+import { inserirLeitura, buscarUltimaLeituraEm, agruparEmSeries } from './reading-repository'
+import { PARAMETER_IDS } from '../../shared/parameter-ids'
 
 describe('readingRepository', () => {
   beforeEach(() => {
@@ -84,6 +85,86 @@ describe('readingRepository', () => {
     it('deve devolver null quando a consulta não devolve linha', () => {
       mockGet.mockReturnValueOnce(undefined)
       expect(buscarUltimaLeituraEm('x')).toBeNull()
+    })
+  })
+
+  // --- UC-005 (CA-005-1): agrupamento das leituras do voo (SQL real em session-repository-sqlite.test.ts) ---
+
+  describe('agruparEmSeries', () => {
+    const T1 = '2026-11-17T10:00:01.000Z'
+    const T2 = '2026-11-17T10:00:02.000Z'
+
+    it('deve devolver lista vazia sem linhas', () => {
+      expect(agruparEmSeries('s', [])).toEqual([])
+    })
+
+    it('deve agrupar em colunas por parâmetro, com instantes em ms UTC e a ordem das linhas', () => {
+      const series = agruparEmSeries('s', [
+        { parametro_id: PARAMETER_IDS.PITCH, timestamp: T1, valor: -2 },
+        { parametro_id: PARAMETER_IDS.ALTITUDE_MSL, timestamp: T1, valor: 1000 },
+        { parametro_id: PARAMETER_IDS.PITCH, timestamp: T2, valor: -3 },
+        { parametro_id: PARAMETER_IDS.ALTITUDE_MSL, timestamp: T2, valor: 1010 },
+      ])
+
+      expect(series).toEqual([
+        {
+          parametroId: PARAMETER_IDS.ALTITUDE_MSL,
+          instantes: [Date.parse(T1), Date.parse(T2)],
+          valores: [1000, 1010],
+        },
+        {
+          parametroId: PARAMETER_IDS.PITCH,
+          instantes: [Date.parse(T1), Date.parse(T2)],
+          valores: [-2, -3],
+        },
+      ])
+    })
+
+    it('deve ordenar as séries pela ordem de TODOS_PARAMETER_IDS e não gerar série sem leitura', () => {
+      const series = agruparEmSeries('s', [
+        { parametro_id: PARAMETER_IDS.FLAPS, timestamp: T1, valor: 10 },
+        { parametro_id: PARAMETER_IDS.LATITUDE, timestamp: T1, valor: -23.5 },
+        { parametro_id: PARAMETER_IDS.AIRSPEED_IAS, timestamp: T1, valor: 90 },
+      ])
+
+      expect(series.map((x) => x.parametroId)).toEqual([
+        PARAMETER_IDS.AIRSPEED_IAS,
+        PARAMETER_IDS.LATITUDE,
+        PARAMETER_IDS.FLAPS,
+      ])
+    })
+
+    it('deve descartar slug desconhecido com um único log por slug', () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+      const series = agruparEmSeries('s-1', [
+        { parametro_id: 'fuel_qty', timestamp: T1, valor: 1 },
+        { parametro_id: 'fuel_qty', timestamp: T2, valor: 2 },
+        { parametro_id: PARAMETER_IDS.BANK, timestamp: T1, valor: 5 },
+      ])
+
+      expect(series).toEqual([
+        { parametroId: PARAMETER_IDS.BANK, instantes: [Date.parse(T1)], valores: [5] },
+      ])
+      expect(consoleError).toHaveBeenCalledTimes(1)
+      expect(consoleError.mock.calls[0][0]).toContain('s-1')
+      expect(consoleError.mock.calls[0][1]).toBe('fuel_qty')
+      consoleError.mockRestore()
+    })
+
+    it('deve descartar timestamp inválido com log', () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+      const series = agruparEmSeries('s', [
+        { parametro_id: PARAMETER_IDS.RPM_1, timestamp: 'não é data', valor: 1 },
+        { parametro_id: PARAMETER_IDS.RPM_1, timestamp: T2, valor: 2300 },
+      ])
+
+      expect(series).toEqual([
+        { parametroId: PARAMETER_IDS.RPM_1, instantes: [Date.parse(T2)], valores: [2300] },
+      ])
+      expect(consoleError).toHaveBeenCalledOnce()
+      consoleError.mockRestore()
     })
   })
 })

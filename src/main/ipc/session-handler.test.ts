@@ -1,14 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ----- mocks (hoisted so vi.mock factories can reference them) -----
-const { mockIpcMainHandle, mockWebContentsSend, mockBuscarSessaoAtiva, mockListarSessoesEncerradas } =
-  vi.hoisted(() => ({
-    mockIpcMainHandle: vi.fn(),
-    mockWebContentsSend: vi.fn(),
-    // O handler não pode mais ler o banco (UC-003): o mock existe para provar isso.
-    mockBuscarSessaoAtiva: vi.fn(),
-    mockListarSessoesEncerradas: vi.fn(),
-  }))
+const {
+  mockIpcMainHandle,
+  mockWebContentsSend,
+  mockBuscarSessaoAtiva,
+  mockListarSessoesEncerradas,
+  mockListarLeiturasDoVoo,
+} = vi.hoisted(() => ({
+  mockIpcMainHandle: vi.fn(),
+  mockWebContentsSend: vi.fn(),
+  // O handler não pode mais ler o banco (UC-003): o mock existe para provar isso.
+  mockBuscarSessaoAtiva: vi.fn(),
+  mockListarSessoesEncerradas: vi.fn(),
+  mockListarLeiturasDoVoo: vi.fn(),
+}))
 
 vi.mock('electron', () => ({
   ipcMain: { handle: mockIpcMainHandle },
@@ -20,16 +26,21 @@ vi.mock('../db/session-repository', () => ({
   listarSessoesEncerradas: mockListarSessoesEncerradas,
 }))
 
+vi.mock('../db/reading-repository', () => ({
+  listarLeiturasDoVoo: mockListarLeiturasDoVoo,
+}))
+
 import {
   registerSessionHandlers,
   emitSessionStarted,
   emitSessionEnded,
   emitSessionEndFailed,
 } from './session-handler'
-import type { Sessao } from '../../shared/types'
+import type { LeiturasDoVoo, Sessao } from '../../shared/types'
 import {
   SESSION_GET_ACTIVE,
   SESSION_LIST_ENDED,
+  SESSION_GET_READINGS,
   SESSION_STARTED,
   SESSION_ENDED,
   SESSION_END_FAILED,
@@ -64,13 +75,16 @@ describe('sessionHandler', () => {
   })
 
   describe('registerSessionHandlers', () => {
-    it('deve registrar handlers nos canais session:get-active e session:list-ended', () => {
+    it('deve registrar handlers nos canais session:get-active, session:list-ended e session:get-readings', () => {
       registerSessionHandlers(() => null)
 
-      expect(mockIpcMainHandle).toHaveBeenCalledTimes(2)
+      expect(mockIpcMainHandle).toHaveBeenCalledTimes(3)
       const canais = mockIpcMainHandle.mock.calls.map((c) => c[0] as string)
-      expect(canais).toEqual(expect.arrayContaining([SESSION_GET_ACTIVE, SESSION_LIST_ENDED]))
+      expect(canais).toEqual(
+        expect.arrayContaining([SESSION_GET_ACTIVE, SESSION_LIST_ENDED, SESSION_GET_READINGS])
+      )
       expect(SESSION_LIST_ENDED).toBe('session:list-ended')
+      expect(SESSION_GET_READINGS).toBe('session:get-readings')
     })
 
     it('deve retornar a sessão ativa da memória do main via canal session:get-active', () => {
@@ -169,6 +183,80 @@ describe('sessionHandler', () => {
       expect(handler()).toEqual([])
       mockListarSessoesEncerradas.mockReturnValueOnce([makeSessao({ id: 'nova', status: 'encerrada' })])
       expect(handler().map((x) => x.id)).toEqual(['nova'])
+    })
+  })
+
+  // --- UC-005 (CA-005-1, CA-005-11): leituras do voo ---
+
+  describe('session:get-readings', () => {
+    type HandlerLeituras = (evento: unknown, sessaoId: unknown) => LeiturasDoVoo
+
+    function handlerLeituras(): HandlerLeituras {
+      const chamada = mockIpcMainHandle.mock.calls.find((c) => c[0] === SESSION_GET_READINGS)
+      if (chamada === undefined) {
+        throw new Error('Nenhum handler registrado em session:get-readings')
+      }
+      return chamada[1] as HandlerLeituras
+    }
+
+    const leituras: LeiturasDoVoo = {
+      sessaoId: 'voo-1',
+      series: [{ parametroId: 'altitude_msl', instantes: [1000, 2000], valores: [500, 510] }],
+    }
+
+    beforeEach(() => {
+      vi.spyOn(console, 'info').mockImplementation(() => undefined)
+    })
+
+    it('deve responder com as leituras do repositório para o sessaoId pedido', () => {
+      mockListarLeiturasDoVoo.mockReturnValue(leituras)
+      registerSessionHandlers(() => null)
+
+      expect(handlerLeituras()({}, 'voo-1')).toEqual(leituras)
+      expect(mockListarLeiturasDoVoo).toHaveBeenCalledWith('voo-1')
+    })
+
+    it.each([[undefined], [''], [42], [null], [{ id: 'voo-1' }]])(
+      'deve logar e rejeitar sessaoId inválido (%j) sem ler o banco',
+      (sessaoId) => {
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+        registerSessionHandlers(() => null)
+
+        expect(() => handlerLeituras()({}, sessaoId)).toThrow()
+        expect(mockListarLeiturasDoVoo).not.toHaveBeenCalled()
+        expect(consoleError).toHaveBeenCalledWith(
+          '[SessionHandler] Falha ao buscar as leituras do voo:',
+          expect.any(Error)
+        )
+        consoleError.mockRestore()
+      }
+    )
+
+    it('deve logar e relançar o erro quando o repositório falha', () => {
+      const falha = new Error('Sessão voo-x não encontrada')
+      mockListarLeiturasDoVoo.mockImplementation(() => {
+        throw falha
+      })
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      registerSessionHandlers(() => null)
+
+      expect(() => handlerLeituras()({}, 'voo-x')).toThrow(falha)
+      expect(consoleError).toHaveBeenCalledWith(
+        '[SessionHandler] Falha ao buscar as leituras do voo:',
+        falha
+      )
+      consoleError.mockRestore()
+    })
+
+    it('deve ler o banco a cada chamada, sem cache (reabrir o voo carrega de novo)', () => {
+      mockListarLeiturasDoVoo.mockReturnValue(leituras)
+      registerSessionHandlers(() => null)
+      const handler = handlerLeituras()
+
+      handler({}, 'voo-1')
+      handler({}, 'voo-1')
+
+      expect(mockListarLeiturasDoVoo).toHaveBeenCalledTimes(2)
     })
   })
 

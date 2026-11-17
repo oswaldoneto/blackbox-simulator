@@ -4,6 +4,10 @@ import {
   formatarHoraDoVoo,
   formatarDuracaoDoVoo,
   formatarDuracaoPorExtenso,
+  formatarSegundosHms,
+  formatarSegundosPorExtenso,
+  formatarHoraComSegundos,
+  textoDoInstante,
 } from './format-flight-time'
 
 const SAO_PAULO = 'America/Sao_Paulo' // UTC−3, sem horário de verão
@@ -232,5 +236,58 @@ describe('formatarDuracaoPorExtenso', () => {
 
   it('deve devolver "duração indisponível" quando o fim é anterior ao início', () => {
     expect(formatarDuracaoPorExtenso(INICIO, fim(-1))).toBe('duração indisponível')
+  })
+})
+
+// --- UC-005 (CA-005-3, CA-005-12) ---
+
+describe('formatarSegundosHms', () => {
+  it('deve formatar em h:mm:ss com horas sem limite e sem zero à esquerda', () => {
+    expect(formatarSegundosHms(0)).toBe('0:00:00')
+    expect(formatarSegundosHms(725)).toBe('0:12:05')
+    expect(formatarSegundosHms(3723)).toBe('1:02:03')
+    expect(formatarSegundosHms(26 * 3600 + 3 * 60 + 9)).toBe('26:03:09')
+  })
+
+  it('deve descartar a fração e tratar negativo como zero', () => {
+    expect(formatarSegundosHms(59.9)).toBe('0:00:59')
+    expect(formatarSegundosHms(-3)).toBe('0:00:00')
+  })
+})
+
+describe('formatarSegundosPorExtenso', () => {
+  it('deve ler por extenso, omitindo as partes zero', () => {
+    expect(formatarSegundosPorExtenso(0)).toBe('0 segundos')
+    expect(formatarSegundosPorExtenso(1)).toBe('1 segundo')
+    expect(formatarSegundosPorExtenso(725)).toBe('12 minutos e 5 segundos')
+    expect(formatarSegundosPorExtenso(3600)).toBe('1 hora')
+    expect(formatarSegundosPorExtenso(3723)).toBe('1 hora, 2 minutos e 3 segundos')
+    expect(formatarSegundosPorExtenso(2 * 3600 + 60)).toBe('2 horas e 1 minuto')
+  })
+
+  it('deve descartar a fração de segundo', () => {
+    expect(formatarSegundosPorExtenso(5.8)).toBe('5 segundos')
+  })
+})
+
+describe('formatarHoraComSegundos', () => {
+  it('deve formatar HH:mm:ss em 24 h no fuso informado', () => {
+    expect(formatarHoraComSegundos(Date.parse('2026-11-17T17:17:05.000Z'), SAO_PAULO)).toBe(
+      '14:17:05'
+    )
+    expect(formatarHoraComSegundos(Date.parse('2026-11-17T00:00:09.000Z'), 'UTC')).toBe('00:00:09')
+  })
+
+  it('deve devolver "—" para instante não finito', () => {
+    expect(formatarHoraComSegundos(NaN, 'UTC')).toBe('—')
+    expect(formatarHoraComSegundos(Infinity, 'UTC')).toBe('—')
+  })
+})
+
+describe('textoDoInstante', () => {
+  it('deve juntar decorrido e duração por extenso com a hora local', () => {
+    expect(textoDoInstante(725, 3723, '14:17:05')).toBe(
+      '12 minutos e 5 segundos de 1 hora, 2 minutos e 3 segundos, 14:17:05'
+    )
   })
 })

@@ -145,7 +145,10 @@ export function App(): React.ReactElement {
         {tela.nome === 'voos' && (
           <FlightListPage onSelecionar={abrirVoo} focoSessaoId={tela.focoSessaoId} focarTitulo />
         )}
-        {tela.nome === 'voo' && <FlightDetailPage sessao={tela.sessao} onVoltar={voltarParaLista} />}
+        {tela.nome === 'voo' && (
+          // A chave remonta a tela a cada voo: reprodução e dados começam do zero (UC-005).
+          <FlightDetailPage key={tela.sessao.id} sessao={tela.sessao} onVoltar={voltarParaLista} />
+        )}
       </main>
     </div>
   )

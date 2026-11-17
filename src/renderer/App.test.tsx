@@ -5,7 +5,13 @@ import userEvent from '@testing-library/user-event'
 import { App } from './App'
 import { formatarDataDoVoo, formatarHoraDoVoo } from './components/format-flight-time'
 import type { ElectronApi } from './electron-api'
-import type { EstadoConexao, PacoteDeLeituras, ParametroDeVoo, Sessao } from '../shared/types'
+import type {
+  EstadoConexao,
+  LeiturasDoVoo,
+  PacoteDeLeituras,
+  ParametroDeVoo,
+  Sessao,
+} from '../shared/types'
 
 // ---------- fake window.electronApi ----------
 
@@ -16,6 +22,7 @@ interface FakeApiOptions {
   conexao?: EstadoConexao
   parametros?: ParametroDeVoo[]
   sessoesEncerradas?: Sessao[]
+  leiturasDoVoo?: (sessaoId: string) => LeiturasDoVoo
 }
 
 interface FakeApi {
@@ -46,6 +53,11 @@ function createFakeApi(opts: FakeApiOptions = {}): FakeApi {
   const api: ElectronApi = {
     getActiveSessao: vi.fn().mockResolvedValue(opts.sessao ?? null),
     listSessoesEncerradas: vi.fn().mockResolvedValue(opts.sessoesEncerradas ?? []),
+    getLeiturasDoVoo: vi
+      .fn()
+      .mockImplementation((sessaoId: string) =>
+        Promise.resolve(opts.leiturasDoVoo?.(sessaoId) ?? { sessaoId, series: [] })
+      ),
     onSessionStarted: (cb) => subscribe(started, cb),
     onSessionEnded: (cb) => subscribe(ended, cb),
     onSessionEndFailed: (cb) => subscribe(endFailed, cb),
@@ -158,8 +170,16 @@ function rotulosDoPainel(): string[] {
     .map((g) => g.querySelector('.parameter-indicator__label')?.textContent ?? '')
 }
 
+/**
+ * Barra de estado: o banner fora do <main>. O <header> da tela do voo fica dentro de
+ * <main>/<section> e não é landmark no navegador, mas a Testing Library o conta como banner.
+ */
 function statusBar(): HTMLElement {
-  return screen.getByRole('banner')
+  const banner = screen.getAllByRole('banner').find((el) => el.closest('main') === null)
+  if (banner === undefined) {
+    throw new Error('Barra de estado não encontrada')
+  }
+  return banner
 }
 
 function avisoSessaoEncerrada(): HTMLElement | null {
@@ -1050,20 +1070,128 @@ describe('App', () => {
       consoleError.mockRestore()
     })
 
-    it('CA-004-2: deve abrir a tela provisória do voo no clique do card, com data, hora, duração e aviso', async () => {
+    it('CA-004-2: deve abrir a tela do voo no clique do card, com data, hora de início e duração', async () => {
       await renderApp(createFakeApi({ sessao: null, sessoesEncerradas: [VOO_RECENTE, VOO_ANTIGO] }))
       await abrirVoos()
 
       await userEvent.click(screen.getByRole('button', { name: rotulo(VOO_RECENTE, '1 hora, 15 minutos e 30 segundos') }))
+      await flush()
 
       expect(telaDoVoo(VOO_RECENTE)).toBeInTheDocument()
       expect(telaDaLista()).not.toBeInTheDocument()
-      expect(screen.getByText(formatarHoraDoVoo(VOO_RECENTE.iniciadaEm), { selector: 'dd' })).toBeInTheDocument()
-      expect(screen.getByText('1:15:30', { selector: 'dd' })).toBeInTheDocument()
-      expect(screen.getByText('Debriefing disponível em breve')).toBeInTheDocument()
+      const meta = document.getElementById('flight-detail-meta') as HTMLElement
+      expect(meta).toHaveTextContent(`Início ${formatarHoraDoVoo(VOO_RECENTE.iniciadaEm)}`)
+      expect(within(meta).getByText('1:15:30')).toBeInTheDocument()
+      expect(screen.queryByText('Debriefing disponível em breve')).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Voltar à lista' })).toHaveFocus()
       // A tela do voo pertence à seção "Voos".
       expect(botaoNav('Voos')).toHaveAttribute('aria-current', 'page')
+    })
+
+    it('CA-005-1: deve pedir as leituras do voo selecionado ao abrir a tela do voo', async () => {
+      const fake = createFakeApi({ sessao: null, sessoesEncerradas: [VOO_RECENTE, VOO_ANTIGO] })
+      await renderApp(fake)
+      await abrirVoos()
+
+      await userEvent.click(screen.getByRole('button', { name: rotulo(VOO_ANTIGO, '0 segundos') }))
+      await flush()
+
+      expect(fake.api.getLeiturasDoVoo).toHaveBeenCalledOnce()
+      expect(fake.api.getLeiturasDoVoo).toHaveBeenCalledWith(VOO_ANTIGO.id)
+      expect(screen.getByText('Nenhuma leitura gravada neste voo.')).toBeInTheDocument()
+    })
+
+    it('CA-005-11: deve carregar os dados de novo ao reabrir o voo depois de um erro', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      const fake = createFakeApi({ sessao: null, sessoesEncerradas: [VOO_RECENTE] })
+      ;(fake.api.getLeiturasDoVoo as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('falha'))
+      await renderApp(fake)
+      await abrirVoos()
+      const card = (): HTMLElement =>
+        screen.getByRole('button', { name: rotulo(VOO_RECENTE, '1 hora, 15 minutos e 30 segundos') })
+
+      await userEvent.click(card())
+      await flush()
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Não foi possível carregar os dados do voo. Volte à lista e abra o voo de novo.'
+      )
+
+      await userEvent.click(screen.getByRole('button', { name: 'Voltar à lista' }))
+      await flush()
+      await userEvent.click(card())
+      await flush()
+
+      expect(fake.api.getLeiturasDoVoo).toHaveBeenCalledTimes(2)
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(screen.getByText('Nenhuma leitura gravada neste voo.')).toBeInTheDocument()
+      consoleError.mockRestore()
+    })
+
+    it('CA-005-13: deve voltar à lista com Esc e parar a reprodução', async () => {
+      const inicio = Date.parse(VOO_RECENTE.iniciadaEm)
+      const fake = createFakeApi({
+        sessao: null,
+        sessoesEncerradas: [VOO_RECENTE],
+        leiturasDoVoo: (sessaoId) => ({
+          sessaoId,
+          series: [{ parametroId: 'altitude_msl', instantes: [inicio], valores: [1000] }],
+        }),
+      })
+      await renderApp(fake)
+      await abrirVoos()
+      await userEvent.click(
+        screen.getByRole('button', { name: rotulo(VOO_RECENTE, '1 hora, 15 minutos e 30 segundos') })
+      )
+      await flush()
+      const setIntervalSpy = vi.spyOn(window, 'setInterval')
+      const clearIntervalSpy = vi.spyOn(window, 'clearInterval')
+      await userEvent.click(screen.getByRole('button', { name: 'Reproduzir o voo' }))
+      // Só o relógio da reprodução usa 250 ms (outros intervalos do app ficam de fora).
+      const indice = setIntervalSpy.mock.calls.findIndex((c) => c[1] === 250)
+      expect(indice).toBeGreaterThanOrEqual(0)
+      const timer = setIntervalSpy.mock.results[indice].value as unknown
+      expect(clearIntervalSpy).not.toHaveBeenCalledWith(timer)
+
+      await userEvent.keyboard('{Escape}')
+      await flush()
+
+      expect(telaDaLista()).toBeInTheDocument()
+      expect(clearIntervalSpy).toHaveBeenCalledWith(timer)
+      setIntervalSpy.mockRestore()
+      clearIntervalSpy.mockRestore()
+    })
+
+    it('CA-005-13: deve parar a reprodução e abrir o painel com "Coleta iniciada" quando uma sessão começa', async () => {
+      const inicio = Date.parse(VOO_RECENTE.iniciadaEm)
+      const fake = createFakeApi({
+        sessao: null,
+        sessoesEncerradas: [VOO_RECENTE],
+        leiturasDoVoo: (sessaoId) => ({
+          sessaoId,
+          series: [{ parametroId: 'altitude_msl', instantes: [inicio], valores: [1000] }],
+        }),
+      })
+      await renderApp(fake)
+      await abrirVoos()
+      await userEvent.click(
+        screen.getByRole('button', { name: rotulo(VOO_RECENTE, '1 hora, 15 minutos e 30 segundos') })
+      )
+      await flush()
+      const setIntervalSpy = vi.spyOn(window, 'setInterval')
+      const clearIntervalSpy = vi.spyOn(window, 'clearInterval')
+      await userEvent.click(screen.getByRole('button', { name: 'Reproduzir o voo' }))
+      const indice = setIntervalSpy.mock.calls.findIndex((c) => c[1] === 250)
+      expect(indice).toBeGreaterThanOrEqual(0)
+      const timer = setIntervalSpy.mock.results[indice].value as unknown
+
+      fake.emitSessionStarted(makeSessao({ id: 'sess-2' }))
+
+      expect(telaDoVoo(VOO_RECENTE)).not.toBeInTheDocument()
+      expect(screen.getByRole('region', { name: 'Painel de tempo real' })).toBeInTheDocument()
+      expect(notificacao('Coleta iniciada')).toBeDefined()
+      expect(clearIntervalSpy).toHaveBeenCalledWith(timer)
+      setIntervalSpy.mockRestore()
+      clearIntervalSpy.mockRestore()
     })
 
     it('deve voltar à lista pelo botão "Voltar à lista", com foco no card de origem', async () => {
@@ -1410,17 +1538,47 @@ describe('App', () => {
       ).not.toBeInTheDocument()
     })
 
-    it('deve descrever "Voltar à lista" pelo título do voo e pelo aviso', async () => {
+    it('deve descrever "Voltar à lista" pelo título do voo e pela linha de início e duração', async () => {
+      const inicio = Date.parse(VOO_RECENTE.iniciadaEm)
+      await renderApp(
+        createFakeApi({
+          sessao: null,
+          sessoesEncerradas: [VOO_RECENTE],
+          leiturasDoVoo: (sessaoId) => ({
+            sessaoId,
+            series: [{ parametroId: 'altitude_msl', instantes: [inicio], valores: [1000] }],
+          }),
+        })
+      )
+      await abrirVoos()
+      await userEvent.click(
+        screen.getByRole('button', { name: rotulo(VOO_RECENTE, '1 hora, 15 minutos e 30 segundos') })
+      )
+      await flush()
+
+      const voltar = screen.getByRole('button', { name: 'Voltar à lista' })
+      expect(voltar).toHaveFocus()
+      expect(voltar).toHaveAccessibleDescription(
+        new RegExp(
+          `^Voo de ${formatarDataDoVoo(VOO_RECENTE.iniciadaEm).replace(/\//g, '\\/')} Início ${formatarHoraDoVoo(VOO_RECENTE.iniciadaEm)} · Duração\\s*1 hora, 15 minutos e 30 segundos$`
+        )
+      )
+    })
+
+    it('deve incluir "Nenhuma leitura gravada neste voo." na descrição de "Voltar à lista" quando o voo não tem leituras', async () => {
       await renderApp(createFakeApi({ sessao: null, sessoesEncerradas: [VOO_RECENTE] }))
       await abrirVoos()
       await userEvent.click(
         screen.getByRole('button', { name: rotulo(VOO_RECENTE, '1 hora, 15 minutos e 30 segundos') })
       )
+      await flush()
 
       const voltar = screen.getByRole('button', { name: 'Voltar à lista' })
       expect(voltar).toHaveFocus()
       expect(voltar).toHaveAccessibleDescription(
-        `Voo de ${formatarDataDoVoo(VOO_RECENTE.iniciadaEm)} Debriefing disponível em breve`
+        new RegExp(
+          `^Voo de ${formatarDataDoVoo(VOO_RECENTE.iniciadaEm).replace(/\//g, '\\/')} Início ${formatarHoraDoVoo(VOO_RECENTE.iniciadaEm)} · Duração\\s*1 hora, 15 minutos e 30 segundos Nenhuma leitura gravada neste voo\\.$`
+        )
       )
     })
 

@@ -11,7 +11,8 @@ vi.mock('../ipc/parameter-ipc', () => ({
   onParameterReadings: (cb: (p: PacoteDeLeituras) => void) => mockOnParameterReadings(cb),
 }))
 
-import { useLiveReadings, SEM_DADOS_LIMITE_MS } from './use-live-readings'
+import { useLiveReadings } from './use-live-readings'
+import { SEM_DADOS_LIMITE_MS } from '../components/limites-de-tempo'
 
 let listeners: ((p: PacoteDeLeituras) => void)[] = []
 

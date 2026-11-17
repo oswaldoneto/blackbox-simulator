@@ -13,6 +13,32 @@
   --color-chart-2: #FF832B;
   --color-chart-3: #24A148;
   --color-chart-4: #8A3FFC;
+
+  /* Debriefing (UC-005): painel de instrumentos escuro, exceção ao tema claro. */
+  --color-panel-bg: #2F3438;
+  --color-panel-bezel: #4A5056;
+  --color-panel-face: #161616;
+  --color-panel-housing: #3A3F44;
+  --color-panel-title: #F4F4F4;
+  --color-panel-text: #FFFFFF;
+  --color-panel-label: #C6C6C6;
+  --color-panel-muted: #A8A8A8;
+  --color-panel-scale-label: #A8B3C2;
+  --color-panel-sky: #4A90D9;
+  --color-panel-ground: #8B5A2B;
+  --color-panel-marker: #FF832B;
+  --color-panel-mixture: #FF6F75;
+  --color-panel-flap: #78A9FF;
+  --color-panel-wing: #DDE1E7;
+  --color-panel-tick: #8D96A3;
+
+  /* Debriefing (UC-005): trajetória e perfil vertical. */
+  --color-track-remaining: #7A8290;
+  --color-track-flown: #0F62FE;
+  --color-profile-fill: #E5EDFF;
+  --color-profile-fill-flown: #BFD2FF;
+  --color-profile-line: #0F62FE;
+  --color-profile-grid: #EEF0F3;
 }
 
 body {
@@ -20,4 +46,17 @@ body {
   font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
   color: var(--color-text-primary);
   margin: 0;
+}
+
+/* Esconde o elemento na tela, mas o mantém para o leitor de tela e para o foco. */
+.visualmente-oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }

@@ -1,0 +1,245 @@
+/*
+ * Painel de instrumentos escuro do debriefing (UC-005): exceção ao tema claro. O "—" e o
+ * "N/A" usam --color-panel-muted (#A8A8A8) sobre --color-panel-bg (#2F3438), cerca de 5,3:1.
+ */
+.instrument-panel {
+  display: flex;
+  flex: 1.4 1 600px;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  background: var(--color-panel-bg);
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+.instrument-panel__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-panel-title);
+}
+
+.instrument-panel__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.instrument-panel__grid {
+  display: grid;
+  flex: 3 1 420px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 16px;
+  min-width: 0;
+}
+
+.instrument-panel__side {
+  display: flex;
+  flex: 1 1 150px;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding-left: 16px;
+  border-left: 1px solid var(--color-panel-bezel);
+  box-sizing: border-box;
+}
+
+.instrument {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.instrument__drawing {
+  width: 100%;
+  max-width: 170px;
+}
+
+.instrument__drawing svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.instrument__reading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.instrument__label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-panel-label);
+  text-align: center;
+}
+
+.instrument__value {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-panel-text);
+  text-align: center;
+}
+
+.instrument__value--muted {
+  font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  color: var(--color-panel-muted);
+}
+
+.instrument__unit {
+  font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  color: var(--color-panel-label);
+}
+
+/* Mostradores redondos. */
+.dial__bezel {
+  fill: var(--color-panel-bezel);
+}
+
+.dial__face {
+  fill: var(--color-panel-face);
+}
+
+.dial__tick {
+  stroke: var(--color-panel-text);
+}
+
+.dial__scale-text {
+  font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  fill: var(--color-panel-text);
+}
+
+.dial__legend {
+  font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  fill: var(--color-panel-scale-label);
+}
+
+.dial__legend--small {
+  font-size: 9px;
+  letter-spacing: 0;
+}
+
+.dial__pointer {
+  fill: var(--color-panel-text);
+}
+
+.dial__hub {
+  fill: var(--color-text-secondary);
+  stroke: var(--color-panel-text);
+  stroke-width: 1.5;
+}
+
+/* Horizonte artificial. */
+.attitude__sky {
+  fill: var(--color-panel-sky);
+}
+
+.attitude__ground {
+  fill: var(--color-panel-ground);
+}
+
+.attitude__line {
+  stroke: var(--color-panel-text);
+}
+
+.attitude__ladder-text {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 9px;
+  fill: var(--color-panel-text);
+}
+
+.attitude__bank-pointer {
+  fill: var(--color-panel-text);
+}
+
+.attitude__aircraft {
+  stroke: var(--color-panel-marker);
+}
+
+.attitude__aircraft-dot {
+  fill: var(--color-panel-marker);
+}
+
+/* Bússola. */
+.heading__label {
+  font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  fill: var(--color-panel-text);
+}
+
+.heading__label--cardinal {
+  font-size: 18px;
+}
+
+.heading__index {
+  fill: var(--color-panel-marker);
+}
+
+/* Manete e mistura. */
+.lever-quadrant__housing {
+  fill: var(--color-panel-housing);
+  stroke: var(--color-panel-bezel);
+}
+
+.lever-quadrant__scale {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 9px;
+  fill: var(--color-panel-label);
+}
+
+.lever-quadrant__track {
+  fill: var(--color-panel-face);
+}
+
+.lever-quadrant__throttle {
+  fill: var(--color-panel-face);
+  stroke: var(--color-panel-label);
+}
+
+.lever-quadrant__mixture {
+  fill: var(--color-panel-mixture);
+}
+
+.lever-quadrant__label {
+  font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  fill: var(--color-panel-label);
+}
+
+/* Flapes. */
+.flaps-indicator__tick {
+  stroke: var(--color-panel-tick);
+}
+
+.flaps-indicator__scale {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 10px;
+  fill: var(--color-panel-label);
+}
+
+.flaps-indicator__wing {
+  fill: var(--color-panel-wing);
+  stroke: var(--color-panel-tick);
+}
+
+.flaps-indicator__flap {
+  fill: var(--color-panel-flap);
+}
+
+.flaps-indicator__hinge {
+  fill: var(--color-text-secondary);
+}

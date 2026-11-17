@@ -19,6 +19,12 @@ export const SESSION_GET_ACTIVE = 'session:get-active' as const
  */
 export const SESSION_LIST_ENDED = 'session:list-ended' as const
 
+/**
+ * Invocado pelo renderer para buscar as leituras de um voo encerrado (UC-005), cortadas
+ * entre a hora de início e a hora de fim, inclusive. Recebe o `sessaoId`.
+ */
+export const SESSION_GET_READINGS = 'session:get-readings' as const
+
 /** Invocado pelo renderer para buscar os parâmetros de voo ativos (RN-002). */
 export const PARAMETER_LIST_ACTIVE = 'parameter:list-active' as const
 

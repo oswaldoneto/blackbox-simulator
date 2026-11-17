@@ -44,3 +44,23 @@ export interface PacoteDeLeituras {
   timestamp: string
   leituras: LeituraDoPacote[]
 }
+
+/**
+ * Leituras gravadas de um parâmetro num voo, em colunas (UC-005). `instantes` são os
+ * `timestamp` das leituras em ms UTC, em ordem crescente; `valores[i]` é o valor gravado
+ * em `instantes[i]`, sem interpolação.
+ */
+export interface SerieDeLeituras {
+  parametroId: ParametroId
+  instantes: number[]
+  valores: number[]
+}
+
+/**
+ * Leituras de um voo encerrado entre a hora de início e a hora de fim, inclusive (UC-005).
+ * Só entram os parâmetros com ao menos uma leitura; `series: []` é um voo sem leituras.
+ */
+export interface LeiturasDoVoo {
+  sessaoId: string
+  series: SerieDeLeituras[]
+}

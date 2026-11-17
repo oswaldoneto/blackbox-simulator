@@ -16,7 +16,8 @@ vi.mock('../ipc/session-ipc', () => ({
   onSessionEndFailed: (cb: (s: Sessao) => void) => mockOnSessionEndFailed(cb),
 }))
 
-import { useSessoesEncerradas, CARREGANDO_LIMITE_MS } from './use-sessoes-encerradas'
+import { useSessoesEncerradas } from './use-sessoes-encerradas'
+import { CARREGANDO_LIMITE_MS } from '../components/limites-de-tempo'
 
 interface Adiada<T> {
   promessa: Promise<T>

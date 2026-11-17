@@ -101,6 +101,16 @@ export function buscarSessaoAtiva(): Sessao | null {
   return row ? rowToSessao(row) : null
 }
 
+/** Sessão pelo id, ativa ou encerrada; `null` se não existe (UC-005). */
+export function buscarSessaoPorId(id: string): Sessao | null {
+  const db = getDatabase()
+  const row = db.prepare(`SELECT * FROM sessoes WHERE id = @id`).get({ id }) as
+    | SessaoRow
+    | undefined
+
+  return row ? rowToSessao(row) : null
+}
+
 /**
  * Sessões encerradas (UC-004), da mais recente para a mais antiga por `iniciada_em`;
  * no empate, a gravada por último vem antes. A sessão ativa não entra.

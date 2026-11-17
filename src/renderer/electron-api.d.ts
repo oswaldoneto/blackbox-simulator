@@ -1,8 +1,15 @@
-import type { EstadoConexao, PacoteDeLeituras, ParametroDeVoo, Sessao } from '../shared/types'
+import type {
+  EstadoConexao,
+  LeiturasDoVoo,
+  PacoteDeLeituras,
+  ParametroDeVoo,
+  Sessao,
+} from '../shared/types'
 
 export interface ElectronApi {
   getActiveSessao: () => Promise<Sessao | null>
   listSessoesEncerradas: () => Promise<Sessao[]>
+  getLeiturasDoVoo: (sessaoId: string) => Promise<LeiturasDoVoo>
   onSessionStarted: (callback: (sessao: Sessao) => void) => () => void
   onSessionEnded: (callback: (sessao: Sessao) => void) => () => void
   onSessionEndFailed: (callback: (sessao: Sessao) => void) => () => void

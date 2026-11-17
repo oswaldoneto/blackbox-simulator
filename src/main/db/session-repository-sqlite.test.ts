@@ -37,8 +37,10 @@ import {
   encerrarSessao,
   encerrarSessoesAtivasAnteriores,
   listarSessoesEncerradas,
+  buscarSessaoPorId,
 } from './session-repository'
-import { inserirLeitura, buscarUltimaLeituraEm } from './reading-repository'
+import { inserirLeitura, buscarUltimaLeituraEm, listarLeiturasDoVoo } from './reading-repository'
+import { PARAMETER_IDS } from '../../shared/parameter-ids'
 import type { Sessao } from '../../shared/types'
 
 /** Adaptador mínimo da API do better-sqlite3 sobre o `DatabaseSync` do Node. */
@@ -481,6 +483,195 @@ describe.skipIf(nodeSqlite === null)('sessionRepository com SQLite real (node:sq
       encerrarBruta('v010', '2026-11-01T10:30:00.000Z')
 
       expect(listarSessoesEncerradas()[0].parametrosNaoAplicaveis).toEqual([])
+    })
+  })
+
+  // --- UC-005 (CA-005-1): sessão pelo id e leituras do voo ---
+
+  describe('buscarSessaoPorId', () => {
+    it('deve devolver a sessão encerrada com todos os campos', () => {
+      const criada = criarSessao(dadosDeSessao({ parametrosNaoAplicaveis: ['mixture_1'] }))
+      encerrarSessao(criada.id, '2026-11-17T11:00:00.000Z')
+
+      expect(buscarSessaoPorId(criada.id)).toEqual({
+        ...criada,
+        status: 'encerrada',
+        encerradaEm: '2026-11-17T11:00:00.000Z',
+      })
+    })
+
+    it('deve devolver também a sessão ativa', () => {
+      const criada = criarSessao(dadosDeSessao())
+      expect(buscarSessaoPorId(criada.id)).toEqual(criada)
+    })
+
+    it('deve devolver null quando a sessão não existe', () => {
+      criarSessao(dadosDeSessao())
+      expect(buscarSessaoPorId('inexistente')).toBeNull()
+    })
+
+    it('deve devolver lista N/A vazia para sessão antiga sem a coluna preenchida', () => {
+      inserirSessaoBruta('v010', '2026-11-01T10:00:00.000Z', 'encerrada')
+      expect(buscarSessaoPorId('v010')!.parametrosNaoAplicaveis).toEqual([])
+    })
+  })
+
+  describe('listarLeiturasDoVoo', () => {
+    const INICIO = '2026-11-17T10:00:00.000Z'
+    const FIM = '2026-11-17T10:00:10.000Z'
+
+    function gravar(sessaoId: string, parametroId: string, timestamp: string, valor: number): void {
+      inserirLeitura({ sessaoId, parametroId, timestamp, valor })
+    }
+
+    function vooEncerrado(): Sessao {
+      const criada = criarSessao(dadosDeSessao({ iniciadaEm: INICIO }))
+      return encerrarSessao(criada.id, FIM)
+    }
+
+    it('deve incluir as leituras exatamente na hora de início e na hora de fim', () => {
+      const voo = vooEncerrado()
+      gravar(voo.id, PARAMETER_IDS.ALTITUDE_MSL, INICIO, 1000)
+      gravar(voo.id, PARAMETER_IDS.ALTITUDE_MSL, '2026-11-17T10:00:05.000Z', 1050)
+      gravar(voo.id, PARAMETER_IDS.ALTITUDE_MSL, FIM, 1100)
+
+      const resultado = listarLeiturasDoVoo(voo.id)
+
+      expect(resultado).toEqual({
+        sessaoId: voo.id,
+        series: [
+          {
+            parametroId: PARAMETER_IDS.ALTITUDE_MSL,
+            instantes: [Date.parse(INICIO), Date.parse('2026-11-17T10:00:05.000Z'), Date.parse(FIM)],
+            valores: [1000, 1050, 1100],
+          },
+        ],
+      })
+    })
+
+    it('deve deixar de fora as leituras antes do início e as da espera de 15 s depois do fim', () => {
+      const voo = vooEncerrado()
+      gravar(voo.id, PARAMETER_IDS.ALTITUDE_MSL, '2026-11-17T09:59:59.999Z', 1)
+      gravar(voo.id, PARAMETER_IDS.ALTITUDE_MSL, '2026-11-17T10:00:03.000Z', 2)
+      gravar(voo.id, PARAMETER_IDS.ALTITUDE_MSL, '2026-11-17T10:00:10.001Z', 3)
+      for (let s = 11; s <= 25; s++) {
+        gravar(voo.id, PARAMETER_IDS.ALTITUDE_MSL, `2026-11-17T10:00:${s}.000Z`, 99)
+      }
+
+      const [serie] = listarLeiturasDoVoo(voo.id).series
+
+      expect(serie.valores).toEqual([2])
+      expect(serie.instantes).toEqual([Date.parse('2026-11-17T10:00:03.000Z')])
+    })
+
+    it('deve trazer só as leituras do voo pedido, sem as de outra sessão no mesmo intervalo', () => {
+      const voo = vooEncerrado()
+      const outra = criarSessao(dadosDeSessao({ iniciadaEm: INICIO }))
+      gravar(voo.id, PARAMETER_IDS.ALTITUDE_MSL, '2026-11-17T10:00:01.000Z', 10)
+      gravar(outra.id, PARAMETER_IDS.ALTITUDE_MSL, '2026-11-17T10:00:02.000Z', 20)
+      gravar(outra.id, PARAMETER_IDS.AIRSPEED_IAS, '2026-11-17T10:00:02.000Z', 90)
+
+      const resultado = listarLeiturasDoVoo(voo.id)
+
+      expect(resultado.series).toHaveLength(1)
+      expect(resultado.series[0].valores).toEqual([10])
+    })
+
+    it('deve agrupar por parâmetro, em ordem crescente de instante, mesmo gravadas fora de ordem', () => {
+      const voo = vooEncerrado()
+      gravar(voo.id, PARAMETER_IDS.AIRSPEED_IAS, '2026-11-17T10:00:02.000Z', 82)
+      gravar(voo.id, PARAMETER_IDS.ALTITUDE_MSL, '2026-11-17T10:00:02.000Z', 1020)
+      gravar(voo.id, PARAMETER_IDS.AIRSPEED_IAS, '2026-11-17T10:00:01.000Z', 81)
+      gravar(voo.id, PARAMETER_IDS.ALTITUDE_MSL, '2026-11-17T10:00:01.000Z', 1010)
+
+      const { series } = listarLeiturasDoVoo(voo.id)
+
+      expect(series.map((s) => s.parametroId)).toEqual([
+        PARAMETER_IDS.ALTITUDE_MSL,
+        PARAMETER_IDS.AIRSPEED_IAS,
+      ])
+      expect(series[0].valores).toEqual([1010, 1020])
+      expect(series[1].valores).toEqual([81, 82])
+      expect(series[1].instantes).toEqual([
+        Date.parse('2026-11-17T10:00:01.000Z'),
+        Date.parse('2026-11-17T10:00:02.000Z'),
+      ])
+    })
+
+    it('deve devolver series vazia para voo encerrado sem leituras no intervalo', () => {
+      const voo = vooEncerrado()
+      gravar(voo.id, PARAMETER_IDS.ALTITUDE_MSL, '2026-11-17T10:00:20.000Z', 1)
+
+      expect(listarLeiturasDoVoo(voo.id)).toEqual({ sessaoId: voo.id, series: [] })
+    })
+
+    it('deve trazer a leitura de um voo de duração 0 gravada no instante de início', () => {
+      const criada = criarSessao(dadosDeSessao({ iniciadaEm: INICIO }))
+      encerrarSessao(criada.id, INICIO)
+      gravar(criada.id, PARAMETER_IDS.ALTITUDE_MSL, INICIO, 7)
+
+      expect(listarLeiturasDoVoo(criada.id).series[0].valores).toEqual([7])
+    })
+
+    it('deve lançar erro quando a sessão não existe', () => {
+      expect(() => listarLeiturasDoVoo('inexistente')).toThrow(/não encontrada/)
+    })
+
+    it('deve lançar erro quando a sessão está ativa', () => {
+      const ativa = criarSessao(dadosDeSessao({ iniciadaEm: INICIO }))
+      gravar(ativa.id, PARAMETER_IDS.ALTITUDE_MSL, '2026-11-17T10:00:01.000Z', 1)
+
+      expect(() => listarLeiturasDoVoo(ativa.id)).toThrow(/não está encerrada/)
+    })
+
+    it('deve lançar erro quando a sessão encerrada não tem hora de fim', () => {
+      inserirSessaoBruta('sem-fim', INICIO, 'encerrada')
+
+      expect(() => listarLeiturasDoVoo('sem-fim')).toThrow(/não está encerrada/)
+    })
+
+    it('deve usar o índice idx_leituras_sessao_timestamp, sem B-tree temporária para o ORDER BY', () => {
+      const plano = (
+        db
+          .prepare(
+            `EXPLAIN QUERY PLAN
+             SELECT parametro_id, timestamp, valor FROM leituras_de_parametro
+             WHERE sessao_id = @sessaoId AND timestamp BETWEEN @inicio AND @fim
+             ORDER BY timestamp`
+          )
+          .all({ sessaoId: 'x', inicio: INICIO, fim: FIM }) as { detail: string }[]
+      )
+        .map((r) => r.detail)
+        .join(' | ')
+
+      expect(plano).toContain('idx_leituras_sessao_timestamp')
+      expect(plano).not.toContain('TEMP B-TREE')
+    })
+
+    it('deve usar, no plano, a mesma consulta que listarLeiturasDoVoo executa', () => {
+      // Garante que o EXPLAIN acima confere o SQL real: captura o SQL preparado pela função.
+      const preparados: string[] = []
+      const original = banco.atual as { prepare: (sql: string) => unknown }
+      banco.atual = {
+        ...original,
+        prepare: (sql: string) => {
+          preparados.push(sql)
+          return original.prepare(sql)
+        },
+      }
+      const voo = vooEncerrado()
+      listarLeiturasDoVoo(voo.id)
+      banco.atual = original
+
+      const consulta = preparados.find((sql) => sql.includes('leituras_de_parametro'))!
+      const normalizar = (sql: string): string => sql.replace(/\s+/g, ' ').trim()
+      expect(normalizar(consulta)).toBe(
+        normalizar(
+          `SELECT parametro_id, timestamp, valor FROM leituras_de_parametro
+           WHERE sessao_id = @sessaoId AND timestamp BETWEEN @inicio AND @fim
+           ORDER BY timestamp`
+        )
+      )
     })
   })
 })

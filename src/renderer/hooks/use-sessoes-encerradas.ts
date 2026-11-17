@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
 import { listSessoesEncerradas, onSessionEnded } from '../ipc/session-ipc'
 import type { Sessao } from '../../shared/types'
 
-/** Tempo da primeira carga antes de mostrar o indicador de carregamento (usability.md). */
-export const CARREGANDO_LIMITE_MS = 500
+import { CARREGANDO_LIMITE_MS } from '../components/limites-de-tempo'
 
 interface UseSessoesEncerradasReturn {
   /** Sessões encerradas, da mais recente para a mais antiga; `null` até a primeira carga. */

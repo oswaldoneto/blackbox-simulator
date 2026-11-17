@@ -3,7 +3,7 @@
 > Propósito: Funcionalidades a desenvolver, com os critérios de aceite que guiam os testes e definem quando está pronto.
 > Atualizar quando: um caso de uso for criado, mudar ou tiver os critérios de aceite revistos.
 > Relacionados: [business_rules.md](business_rules.md), [glossary.md](glossary.md), [../engineering/domain_model.md](../engineering/domain_model.md)
-> Última atualização: 2026-11-17 · loop-005
+> Última atualização: 2026-11-17 · loop-006
 
 ## Índice
 
@@ -13,7 +13,7 @@
 | UC-002 | Visualizar parâmetros em tempo real | Concluído |
 | UC-003 | Encerrar sessão de coleta | Concluído |
 | UC-004 | Selecionar voo para debriefing | Concluído |
-| UC-005 | Visualizar dados do debriefing | Em aberto |
+| UC-005 | Visualizar dados do debriefing | Em andamento |
 | UC-006 | Coletar posição, motor e flapes | Concluído |
 
 Status: "Em aberto" (não iniciado), "Em andamento" (loop aberto ou validação manual pendente), "Concluído" (loop encerrado).
@@ -88,7 +88,7 @@ Fluxos alternativos:
   H. Falha ao gravar o encerramento: o sistema registra a falha em log e exibe a notificação de erro "Não foi possível salvar o encerramento. Os dados do voo foram mantidos e o encerramento será concluído na próxima abertura."; o painel mostra a sessão como encerrada; a sessão deixa de ser a sessão em curso (um religamento abre nova sessão) e no banco continua ativa até a próxima abertura do app, que a encerra (fluxos D e E). Falha ao gravar um encerramento feito na abertura do app gera só log, sem aviso na tela; a abertura seguinte tenta de novo.
 Observações:
   - Duração do voo = hora de fim − hora de início, incluindo táxi e períodos sem sinal. Exibida em h:mm:ss, horas sem limite (UC-004).
-  - As leituras gravadas durante os 15 s de espera ficam no banco, depois da hora de fim; o debriefing (UC-005) corta a exibição na hora de fim.
+  - As leituras gravadas durante os 15 s de espera ficam no banco, depois da hora de fim; o debriefing corta a exibição na hora de fim (CA-005-1).
 Limitações conhecidas (aceitas no HITL-1 e no HITL-3 do loop-004):
   - Sair ao menu do simulador e iniciar outro voo sem cortar o motor: os dois voos ficam na mesma sessão.
   - Fechar o simulador com o motor ligado e carregar outro voo já com o motor ligado: os dois voos ficam na mesma sessão.
@@ -118,7 +118,7 @@ Fluxo principal:
   2. O sistema exibe a lista de voos (título "Voos"): todas as sessões encerradas (RN-004), inclusive curtas, de duração 0 e antigas; a sessão ativa nunca aparece e nenhum voo é ocultado. A ordem é pela hora de início, da mais recente para a mais antiga; empate na hora de início segue a ordem de gravação. Rolagem simples, sem paginação.
   3. Cada voo aparece como um card com a data (dd/mm/aaaa) e a hora de início (HH:mm, 24 h), no fuso local da máquina, e a duração (h:mm:ss, horas sem limite; duração 0 aparece "0:00:00"). A hora de fim e a aeronave não aparecem.
   4. O piloto clica num voo (ou chega a ele com Tab e tecla Enter).
-  5. O sistema abre a tela do voo, provisória até o UC-005: título "Voo de dd/mm/aaaa", data, hora de início e duração, o aviso "Debriefing disponível em breve" e o botão "Voltar à lista" (Esc também volta à lista). As leituras do voo não são carregadas neste caso de uso; isso é do UC-005.
+  5. O sistema abre a tela do voo, com o título "Voo de dd/mm/aaaa", a hora de início, a duração e o botão "Voltar à lista" (Esc também volta à lista). O conteúdo do debriefing (carga das leituras, reprodução, trajetória, instrumentos e perfil) é do UC-005.
   6. Para voltar ao painel de tempo real, o piloto clica em "Painel" na barra superior.
 Fluxos alternativos:
   A. Nenhum voo: a lista exibe "Nenhum voo registrado. Inicie o simulador e ligue o motor para começar." Vale também quando só existe a sessão ativa.
@@ -128,36 +128,63 @@ Fluxos alternativos:
   E. Erro ao carregar a lista na primeira carga: o sistema exibe "Não foi possível carregar a lista de voos. Feche e abra o aplicativo para tentar de novo.", sem nova tentativa automática. Se depois uma sessão encerrar e a nova busca der certo, a lista substitui a mensagem (HITL-2 do loop-005).
   F. Falha numa nova busca com a lista já exibida: a lista anterior continua na tela; a falha só vai para o log.
   G. Sessão encerrada em silêncio na abertura do app (UC-003, fluxos D e E): não atualiza a lista já aberta; o voo aparece ao abrir a lista de novo. A sessão de falha de gravação do encerramento (UC-003, fluxo H), ativa no banco até a próxima abertura, só aparece depois de encerrada.
-Fora do escopo deste caso de uso: filtro e busca na lista; paginação; aeronave e aeródromos no card (o campo não é gravado hoje; gravá-los em voos futuros virou item do backlog no HITL-1 do loop-005); aviso para sessões antigas sem os 6 parâmetros novos (UC-005).
+Fora do escopo deste caso de uso: filtro e busca na lista; paginação; aeronave e aeródromos no card (o campo não é gravado hoje; gravá-los em voos futuros virou item do backlog no HITL-1 do loop-005); o conteúdo da tela do voo, inclusive o tratamento das sessões antigas sem os 6 parâmetros novos (UC-005).
 Regras aplicadas: RN-003, RN-004, RN-005, RN-006
 Critérios de aceite:
   - CA-004-1: Dado que existem sessões encerradas, quando o piloto clica em "Voos", então a lista exibe todas as sessões encerradas (inclusive curtas, de duração 0 e antigas), sem a sessão ativa, ordenadas pela hora de início da mais recente para a mais antiga, cada uma com data dd/mm/aaaa, hora de início HH:mm (24 h) no fuso local da máquina e duração h:mm:ss (ex.: "0:00:00", "25:03:10").
-  - CA-004-2: Dado que a lista de voos está exibida, quando o piloto clica num voo (ou o foca com Tab e tecla Enter), então o sistema abre a tela do voo com data, hora de início, duração, o aviso "Debriefing disponível em breve" e o botão "Voltar à lista"; clicar em "Voltar à lista" ou teclar Esc volta à lista.
+  - CA-004-2: Dado que a lista de voos está exibida, quando o piloto clica num voo (ou o foca com Tab e tecla Enter), então o sistema abre a tela do voo com o título "Voo de dd/mm/aaaa", a hora de início, a duração e o botão "Voltar à lista", com o debriefing do UC-005; clicar em "Voltar à lista" ou teclar Esc volta à lista.
   - CA-004-3: Dado que não existe sessão encerrada (inclusive quando só existe a sessão ativa), quando o piloto clica em "Voos", então o sistema exibe "Nenhum voo registrado. Inicie o simulador e ligue o motor para começar."
   - CA-004-4: Dado que uma sessão está ativa, quando o piloto abre a lista de voos e volta pelo botão "Painel", então a barra superior e a barra de estado ficaram visíveis o tempo todo, a sessão ativa não apareceu na lista, a coleta continuou e o painel mostra os valores ao vivo.
   - CA-004-5: Dado que a lista de voos ou a tela do voo está aberta, quando uma sessão começa, então o sistema mostra o painel de tempo real sozinho, com "Coleta iniciada".
   - CA-004-6: Dado que a lista de voos está aberta, quando uma sessão encerra, então a lista atualiza sozinha com o voo novo no topo, sem trocar de tela.
   - CA-004-7: Dado que o piloto abre a lista de voos, quando a primeira carga falha, então o sistema exibe "Não foi possível carregar a lista de voos. Feche e abra o aplicativo para tentar de novo." sem nova tentativa automática; quando uma nova busca falha com a lista já exibida, então a lista anterior continua na tela.
   - CA-004-8: Dado que o piloto abre a lista de voos, quando a carga demora mais de 500 ms, então o sistema exibe "Carregando voos..." até a lista (ou o erro) aparecer.
-(Critérios revistos no loop-005: o antigo "todas as sessões" virou só as encerradas; a seleção abre a tela provisória do voo, sem carregar dados, até o UC-005; o estado vazio ganhou texto oficial.)
+(Critérios revistos no loop-005: o antigo "todas as sessões" virou só as encerradas; a seleção abre a tela provisória do voo, sem carregar dados, até o UC-005; o estado vazio ganhou texto oficial. Revisto no loop-006: a tela do voo deixou de ser provisória e o aviso "Debriefing disponível em breve" saiu.)
 
 ---
 
 UC-005
 Nome: Visualizar dados do debriefing
 Ator: Piloto
-Objetivo: Revisar os parâmetros registrados de um voo selecionado para identificar pontos de melhoria.
-Pré-condições: O piloto selecionou um voo em UC-004. Isso abre a tela do voo, hoje provisória (data, hora de início, duração, aviso "Debriefing disponível em breve" e "Voltar à lista"); o UC-005 preenche essa tela com o debriefing.
+Objetivo: Revisar, na tela do voo, os 12 parâmetros gravados de um voo encerrado, instante a instante, com reprodução, trajetória, painel de instrumentos e perfil vertical, para identificar pontos de melhoria.
+Pré-condições: O piloto selecionou um voo na lista de voos (UC-004), o que abre a tela do voo.
 Fluxo principal:
-  1. O sistema exibe os parâmetros do conjunto de parâmetros ao longo do tempo da sessão selecionada.
-  2. O piloto navega pelos dados para analisar o comportamento dos parâmetros durante o voo.
-Fluxos alternativos: —
-Regras aplicadas: RN-002, RN-005
-Critérios de aceite:
-  - Dado que uma sessão foi selecionada, quando a tela de debriefing é aberta, então todos os parâmetros do conjunto de parâmetros registrados durante aquele voo são exibidos.
-  - Dado que os dados estão sendo exibidos, quando o piloto navega pela linha do tempo, então os valores dos parâmetros correspondem ao momento selecionado.
-Em aberto (vindo do loop-003, UC-006): como o debriefing mostra um parâmetro que foi N/A na sessão (RN-007), diferenciando-o de perda de dados; como aparecem as sessões antigas (loops 001 e 002), gravadas sem os 6 parâmetros novos.
-Em aberto (vindo do loop-005, UC-004): carregar as leituras do voo selecionado e cortá-las na hora de fim (UC-003, observações); mostrar a duração por extenso na tela do voo para leitor de tela (hoje só h:mm:ss). O tratamento de N/A e das sessões antigas segue em aberto, como acima.
+  1. O sistema carrega as leituras do voo, só as que ficam entre a hora de início e a hora de fim, inclusive (RN-004). As leituras gravadas na espera de 15 s do encerramento (UC-003) não aparecem.
+  2. O sistema exibe o cabeçalho do voo: título "Voo de dd/mm/aaaa", hora de início (HH:mm) e duração (h:mm:ss), com o botão "Voltar à lista".
+  3. O sistema exibe a reprodução, pausada em 0:00:00 e na velocidade 1×, com a linha do tempo, o tempo decorrido "h:mm:ss de h:mm:ss" e a hora local do instante (HH:mm:ss).
+  4. O sistema exibe a trajetória, o painel de instrumentos e o perfil vertical no instante selecionado. Cada parâmetro mostra a última leitura gravada até o instante, sem interpolar (RN-008).
+  5. O piloto move a linha do tempo (mouse ou setas, de 1 s em 1 s) ou usa Reproduzir e Pausar a 1×, 4× ou 16×. Instrumentos, aeronave no mapa e cursor do perfil seguem o instante.
+  6. Para sair, o piloto clica em "Voltar à lista" ou tecla Esc; a reprodução para e a lista de voos volta.
+Fluxos alternativos:
+  A. Parâmetro N/A na sessão (RN-007): aparece "N/A" o voo todo, sem ponteiro, com rótulo acessível "<rótulo>: não aplicável". N/A vence "sem dados". Nas sessões antigas, gravadas sem a lista de parâmetros N/A, nenhum parâmetro aparece como N/A.
+  B. Sem dados no instante: se passaram 2 s ou mais desde a última leitura do parâmetro, o valor aparece "—", sem ponteiro, com rótulo acessível "<rótulo>: sem dados". O mapa e o perfil mostram a linha interrompida no trecho sem leituras, e a aeronave some do mapa sem posição no instante (RN-008).
+  C. Voo sem os parâmetros novos: parâmetro aplicável sem nenhuma leitura no voo aparece "Sem dados neste voo". Sem latitude e longitude gravadas, o mapa dá lugar ao texto "Trajetória indisponível: este voo não tem latitude e longitude gravadas (por exemplo, voos gravados antes da v0.3.0)." O caso é detectado pela falta de leituras, sem afirmar a versão que gravou o voo.
+  D. Voo sem leituras: a tela mostra só o cabeçalho e a mensagem "Nenhuma leitura gravada neste voo.", sem reprodução, instrumentos, mapa nem perfil. A mensagem é anunciada pelo leitor de tela.
+  E. Carregamento demorado: se a carga passa de 500 ms, o sistema exibe "Carregando dados do voo..." até os dados (ou o erro) aparecerem.
+  F. Erro ao carregar: o sistema exibe "Não foi possível carregar os dados do voo. Volte à lista e abra o voo de novo." Reabrir o voo carrega os dados de novo.
+  G. Sessão começa (RN-003) com a tela do voo aberta: a reprodução para e o sistema mostra o painel de tempo real com "Coleta iniciada" (CA-004-5).
+Observações:
+  - A aeronave no mapa é orientada pelo rumo magnético gravado, não pelo rumo verdadeiro (limitação conhecida aceita no HITL-1 do loop-006). Sem rumo no instante, ela aparece como um círculo.
+  - Em 0:00:00 os instrumentos podem mostrar "—", porque a primeira leitura chega até 1 s depois da hora de início.
+  - Os instrumentos não têm faixas de cor; as escalas são largas (IAS de 0 a 200 kt, RPM de 0 a 3.500), até a aeronave ser gravada (item 9 do backlog).
+  - O indicador de flapes é um desenho proporcional ao %, sem graus, porque só o % é gravado.
+Fora do escopo deste caso de uso: marcadores de evento (decolagem e pouso) e pista no mapa; faixas de cor por aeronave; ângulo real dos flapes; rumo verdadeiro; mapa de fundo; maximização de painéis; gráficos por parâmetro com seletor; comparação entre voos, exportação, filtros e anotações; atalhos de teclado novos (como espaço para Reproduzir).
+Regras aplicadas: RN-002, RN-003, RN-004, RN-005, RN-007, RN-008
+Critérios de aceite (aprovados no HITL-1 do loop-006):
+  - CA-005-1 (abertura): Dado que o piloto selecionou um voo na lista, quando a tela do voo abre, então mostra o título "Voo de dd/mm/aaaa", a hora de início HH:mm e a duração h:mm:ss; só as leituras entre a hora de início e a hora de fim, inclusive, são carregadas, sem as da espera de 15 s do UC-003; e a reprodução abre pausada em 0:00:00.
+  - CA-005-2 (os 12 parâmetros): Dado que o voo está aberto, quando o piloto olha um instante, então os 12 parâmetros têm valor numérico visível nos formatos de usability.md: velocímetro com a IAS; horizonte artificial com arfagem e rolagem; altímetro com a altitude; tacômetro com o RPM; bússola com o rumo; variômetro com a VS; alavancas de manete e mistura; indicador de flapes; latitude e longitude no texto da trajetória.
+  - CA-005-3 (linha do tempo): Dado que o voo está aberto, quando o piloto move o controle deslizante da linha do tempo (mouse ou setas), então instrumentos, aeronave no mapa e cursor do perfil seguem o instante, e o reprodutor mostra o tempo decorrido "h:mm:ss de h:mm:ss" e a hora local HH:mm:ss.
+  - CA-005-4 (reprodução): Dado que o voo está aberto, quando o piloto usa Reproduzir e Pausar a 1×, 4× ou 16×, então o instante avança na velocidade escolhida; a reprodução pausa no fim, e Reproduzir no fim recomeça do zero.
+  - CA-005-5 (trajetória): Dado que o voo tem latitude e longitude, quando a tela abre, então o mapa mostra a trajetória inteira, sem mapa de fundo e com o norte para cima; o trecho até o instante fica em linha azul contínua e o restante em tracejado; a aeronave é orientada pelo rumo magnético; e a legenda diz "Linha azul contínua: trecho já voado. Tracejado: restante. Falhas na linha: sem dados. A aeronave aponta para o rumo magnético do instante; sem rumo, aparece como um círculo."
+  - CA-005-6 (perfil vertical): Dado que o voo tem altitude, quando a tela abre, então o perfil mostra a altitude ao longo da duração inteira, com cursor no instante, e a redução de pontos do desenho preserva os mínimos e os máximos.
+  - CA-005-7 (N/A): Dado que um parâmetro está na lista de N/A da sessão, quando o voo é exibido, então ele aparece "N/A" o voo todo, sem ponteiro, com rótulo acessível "<rótulo>: não aplicável", e N/A vence "sem dados".
+  - CA-005-8 (sem dados no instante): Dado que passaram 2 s ou mais desde a última leitura de um parâmetro, quando esse instante é exibido, então o valor aparece "—", com rótulo acessível "<rótulo>: sem dados", e o mapa e o perfil mostram o trecho interrompido.
+  - CA-005-9 (voo sem os parâmetros novos): Dado que um parâmetro aplicável não tem nenhuma leitura no voo, quando o voo é exibido, então ele aparece "Sem dados neste voo"; sem latitude e longitude, o mapa vira o texto "Trajetória indisponível: este voo não tem latitude e longitude gravadas (por exemplo, voos gravados antes da v0.3.0)."
+  - CA-005-10 (voo sem leituras): Dado que o voo não tem nenhuma leitura, quando a tela abre, então mostra o cabeçalho e a mensagem "Nenhuma leitura gravada neste voo.", sem reprodução, instrumentos, mapa nem perfil.
+  - CA-005-11 (carregamento e erro): Dado que o piloto abriu um voo, quando a carga passa de 500 ms, então o sistema exibe "Carregando dados do voo..."; quando a carga falha, então exibe "Não foi possível carregar os dados do voo. Volte à lista e abra o voo de novo.", e reabrir o voo carrega de novo.
+  - CA-005-12 (duração por extenso): Dado que o piloto usa leitor de tela, quando ouve a duração no cabeçalho e o tempo decorrido na linha do tempo, então ambos são lidos por extenso (ex.: "12 minutos e 5 segundos de 1 hora, 2 minutos e 3 segundos, 14:17:05"), e o texto visível continua em h:mm:ss.
+  - CA-005-13 (navegação): Dado que a tela do voo está aberta, quando o piloto clica em "Voltar à lista" ou tecla Esc, então volta à lista e a reprodução para; quando uma sessão começa, então a reprodução para e o painel de tempo real abre com "Coleta iniciada" (CA-004-5).
+  - CA-005-14 (fora da escala): Dado que um valor gravado passa do limite da escala do instrumento, quando o instante é exibido, então o ponteiro para no limite e o número mostra o valor real. Exceção aceita no HITL-2 do loop-006: flapes ficam presos em 0–100 e a IAS negativa aparece como 0, pelos formatos de exibição.
 
 ---
 

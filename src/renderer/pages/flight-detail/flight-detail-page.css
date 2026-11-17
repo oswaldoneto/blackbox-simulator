@@ -1,4 +1,45 @@
+.flight-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  color: var(--color-text-primary);
+}
+
+.flight-detail__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.flight-detail__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.flight-detail__meta {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.flight-detail__mono {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.flight-detail__message {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
 .flight-detail__back-button {
+  min-height: 44px;
   padding: 8px 16px;
   background: var(--color-surface);
   border: 1px solid var(--color-accent);
@@ -17,4 +58,290 @@
 .flight-detail__back-button:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
+}
+
+.flight-detail__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: stretch;
+}
+
+/* Seções claras: reprodução, trajetória e perfil vertical. */
+.flight-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.flight-section__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.flight-section__title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.flight-section__label {
+  font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.flight-section__value--muted {
+  color: var(--color-text-secondary);
+}
+
+.flight-section__caption {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.flight-section__unavailable {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+/* Reprodução. */
+.flight-player {
+  gap: 12px;
+}
+
+.flight-player__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.flight-player__buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.flight-player__play {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-accent);
+  fill: var(--color-surface);
+  cursor: pointer;
+}
+
+.flight-player__play:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.flight-player__speeds {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+.flight-player__speed {
+  min-width: 48px;
+  height: 36px;
+  border: 0;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.flight-player__speed:hover {
+  background: var(--color-bg);
+}
+
+.flight-player__speed[aria-pressed='true'] {
+  background: var(--color-accent);
+  color: var(--color-surface);
+}
+
+/* Foco visível nos dois estados: o contorno em accent aparece sobre o fundo branco e o
+   anel interno branco aparece sobre o fundo accent do botão selecionado. O grupo tem
+   overflow: hidden, por isso o contorno fica por dentro. */
+.flight-player__speed:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 4px var(--color-surface);
+}
+
+.flight-player__time {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.flight-player__elapsed {
+  font-weight: 500;
+}
+
+.flight-player__timeline {
+  width: 100%;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.flight-player__timeline:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Trajetória. */
+.trajectory {
+  flex: 1 1 440px;
+  min-width: 0;
+}
+
+.trajectory__position,
+.vertical-profile__readout {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.trajectory__map {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+  background: var(--color-bg);
+}
+
+/* Restante pontilhado, fino e com passo curto (pontos regulares); voado contínuo e grosso.
+   A cor dos dois tem luminância parecida, então a separação vem da espessura e do padrão,
+   e uma falha de dados aparece como um vão bem maior que o espaço entre os pontos. */
+.trajectory__remaining {
+  fill: none;
+  stroke: var(--color-track-remaining);
+  stroke-width: 2;
+  stroke-dasharray: 2 6;
+  stroke-linecap: round;
+  /* Espessura e pontilhado em px de tela, como no perfil vertical; sem isto o viewBox 1000×700 afinaria o traço para ~1 px. */
+  vector-effect: non-scaling-stroke;
+}
+
+.trajectory__flown {
+  fill: none;
+  stroke: var(--color-track-flown);
+  stroke-width: 4;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.trajectory__aircraft {
+  fill: var(--color-text-primary);
+  stroke: var(--color-surface);
+  stroke-width: 2;
+}
+
+.trajectory__north,
+.trajectory__north-text {
+  fill: var(--color-text-secondary);
+}
+
+.trajectory__north-text {
+  font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.trajectory__unavailable {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+  margin: 0;
+  padding: 24px;
+  border: 1px dashed var(--color-border);
+  border-radius: 4px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+/* Perfil vertical. */
+.vertical-profile__chart {
+  display: flex;
+  gap: 8px;
+}
+
+.vertical-profile__axis-y {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 44px;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  text-align: right;
+}
+
+.vertical-profile__svg {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 180px;
+}
+
+.vertical-profile__grid {
+  stroke: var(--color-profile-grid);
+  stroke-width: 1;
+}
+
+.vertical-profile__area {
+  fill: var(--color-profile-fill);
+  stroke: none;
+}
+
+.vertical-profile__area-flown {
+  fill: var(--color-profile-fill-flown);
+  stroke: none;
+}
+
+.vertical-profile__line {
+  fill: none;
+  stroke: var(--color-profile-line);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.vertical-profile__cursor {
+  stroke: var(--color-text-primary);
+  stroke-width: 1.5;
+}
+
+.vertical-profile__axis-x {
+  display: flex;
+  justify-content: space-between;
+  padding-left: 52px;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--color-text-secondary);
 }

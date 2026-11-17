@@ -3,7 +3,7 @@
 > Propósito: Convenções que os agentes de código devem seguir.
 > Atualizar quando: uma convenção for criada ou mudar, inclusive por uma lição aprendida.
 > Relacionados: [architecture.md](architecture.md)
-> Última atualização: 2026-11-17 · loop-005
+> Última atualização: 2026-11-17 · loop-006
 
 ## Linguagem e estilo
 
@@ -17,7 +17,8 @@
 
 - CSS em arquivo (ex.: `realtime-panel.css`, ao lado do componente) quando o estilo precisar de media query ou de regra que o estilo inline não expressa. No resto, estilo inline com os tokens de design.md.
 - Quando um elemento precisa de `:hover` ou `:focus-visible` (ex.: `flight-card.css`, `status-bar.css`, `flight-detail-page.css`, loop-005), a regra base da classe (cor, borda, fundo que a pseudo-classe altera) também vai para o CSS em arquivo. Estilo inline venceria a pseudo-classe.
-- Título acessível visualmente oculto (ex.: o h1 "Painel de tempo real" do painel, loop-005): hoje feito com estilo inline em `App.tsx` (ver "Em aberto").
+- Texto visualmente oculto, lido só pelo leitor de tela (loop-006, HITL-1): usar a classe utilitária `.visualmente-oculto` de `styles/global.css` (ex.: o rótulo do controle deslizante em `flight-player.tsx` e a duração por extenso em `flight-detail-page.tsx`). Não repetir o estilo inline. Débito: o h1 "Painel de tempo real" do painel (loop-005) ainda usa estilo inline em `App.tsx` (ver "Em aberto").
+- SVG acessível (loop-006): o mostrador ou gráfico fica num contêiner com `role="group"` e `aria-label` que diz o valor (ex.: `instrument-slot.tsx`), e o desenho leva `aria-hidden` (no `<svg>` ou no contêiner dele, como `instrument__drawing`). O mapa da trajetória e o perfil vertical, que são uma imagem única, usam `role="img"` com rótulo no próprio SVG. Os textos acessíveis não usam `aria-live`. IDs internos do SVG (`clipPath`) vêm de `useId`, para não colidir entre instâncias. Traços que precisam manter a espessura e o tracejado em px de tela num SVG com `viewBox` que escala levam `vector-effect: non-scaling-stroke` (no CSS ou pela prop `vectorEffect`), como a trajetória e o perfil vertical.
 - Fontes IBM Plex Sans e IBM Plex Mono carregadas localmente pelos pacotes `@fontsource/ibm-plex-sans` e `@fontsource/ibm-plex-mono`, importados no renderer. Não usar Google Fonts nem outra fonte remota (design.md pede fonte local).
 
 ## Estrutura de pastas
@@ -30,9 +31,9 @@ src/
     ipc/          # Handlers dos canais IPC expostos ao renderer
     index.ts      # Entry point do main
   renderer/       # Processo de renderização (React)
-    components/   # Componentes React reutilizáveis e utilitários que só eles usam
-    pages/        # Telas da aplicação (uma pasta por tela, CSS ao lado; ex.: flight-list/, flight-detail/)
-    hooks/        # Custom hooks
+    components/   # Componentes React reutilizáveis, utilitários de exibição e constantes de exibição compartilhadas (sem React)
+    pages/        # Telas da aplicação (uma pasta por tela, com os componentes, funções puras e hook usados só por ela, CSS e testes ao lado)
+    hooks/        # Custom hooks compartilhados ou que falam com o main
     ipc/          # Chamadas IPC para o main (wrappers tipados)
     styles/       # CSS global (fontes, tokens)
     App.tsx
@@ -49,7 +50,12 @@ src/
 - Utilitários de formatação e de derivação de estado de tela ficam ao lado do componente que os usa, em `components/` (ex.: `format-parameter-value.ts`, `panel-state.ts`). Hooks que falam com o main ficam em `hooks/`.
 - Utilitários de exibição usados por componentes e por páginas também ficam em `components/` (decisão do HITL-3 do loop-005). Ex.: `format-flight-time.ts`, usado por `flight-card.tsx` e por `flight-detail-page.tsx`.
 - Páginas (loop-005): uma pasta por tela em `pages/` (`pages/flight-list/flight-list-page.tsx`, `pages/flight-detail/flight-detail-page.tsx`), com o CSS e os testes ao lado. A troca de telas é feita no `App.tsx` (ADR-010 em architecture.md).
-- Formatação de data e hora (loop-005): `format-flight-time.ts` usa `Intl.DateTimeFormat('pt-BR')` no fuso local da máquina (data dd/mm/aaaa; hora HH:mm com `hourCycle: 'h23'`) e recebe um `timeZone` opcional, usado só pelos testes para fixar o fuso. A duração é calculada pelos instantes, não pelo relógio local.
+- Desde o loop-006 (HITL-1 e rodada curta do HITL-3), `pages/<tela>/` guarda também os componentes e as funções puras usados só por aquela tela e o hook de uma tela só. Ex.: os mostradores, `valor-no-instante.ts`, `reduzir-pontos.ts`, `reproducao.ts` e `use-reproducao.ts` em `pages/flight-detail/`. Quando passar a ser usado por outra tela, o arquivo sobe para `components/` ou `hooks/`.
+- `hooks/` fica para hooks compartilhados entre telas ou que falam com o main (ex.: `use-dados-do-voo.ts`, que chama `session:get-readings`). Hooks nunca importam de `pages/`.
+- Constantes de exibição compartilhadas, sem React, ficam em `components/` (ex.: `components/limites-de-tempo.ts`, com `SEM_DADOS_LIMITE_MS` e `CARREGANDO_LIMITE_MS`, usadas pelo painel, pela lista e pelo debriefing). Hooks não exportam constantes para outros módulos.
+- Formatação de data e hora (loop-005): `format-flight-time.ts` usa `Intl.DateTimeFormat('pt-BR')` no fuso local da máquina (data dd/mm/aaaa; hora HH:mm com `hourCycle: 'h23'`) e recebe um `timeZone` opcional, usado só pelos testes para fixar o fuso. A duração é calculada pelos instantes, não pelo relógio local. Desde o loop-006, o cálculo de h:mm:ss e por extenso fica em `formatarSegundosHms` e `formatarSegundosPorExtenso`, reaproveitados pelos formatadores de duração e pelo tempo da reprodução (`formatarHoraComSegundos`, `textoDoInstante` para o `aria-valuetext`).
+- Prop `timeZone` em componentes (loop-006): páginas e componentes que formatam data ou hora (`flight-detail-page.tsx`, `flight-player.tsx`) recebem um `timeZone?` opcional e o repassam ao formatador. A prop existe só para os testes; o `App` nunca a passa, e o app usa o fuso local.
+- Reprodução no tempo (loop-006): a lógica que avança com o tempo é uma função pura, sem timer e sem `Date.now()` (`avancarReproducao`, `alternarReproducao` em `reproducao.ts`), e o timer fica num hook à parte (`use-reproducao.ts`, `setInterval` só enquanto toca, limpo ao pausar e ao desmontar). As funções puras são testadas com valores explícitos, e o hook com fake timers.
 
 ## Nomes
 
@@ -147,11 +153,22 @@ Implementado no loop-003 (`src/main/db/migrator.ts`):
 
 ## Em aberto
 
+Resolvido no loop-006: o cálculo de horas, minutos e segundos repetido em `formatarDuracaoDoVoo` e `formatarDuracaoPorExtenso` (`format-flight-time.ts`, loop-005) foi extraído para `formatarSegundosHms` e `formatarSegundosPorExtenso`.
+
+Levantado no loop-006 (2.2, 3.2 e 3.4); débitos não bloqueantes aceitos no HITL-3, aguardam decisão humana.
+
+- `duracaoEmSegundos` duplicada: uma função privada com esse nome existe em `format-flight-time.ts` e outra em `flight-detail-page.tsx`.
+- Tipagem mista de `parametroId`: `SerieDeLeituras.parametroId` é `ParametroId`, mas o debriefing indexa as séries por `string` (`ReadonlyMap<string, SerieDeLeituras>` em `catalogo.ts`, `valor-no-instante.ts` e `flight-detail-page.tsx`). Mesmo tema da "Tipagem dos IDs" do loop-003.
+- Slugs escritos à mão nos testes do loop: a regra de "Estrutura de pastas" proíbe slugs à mão no código TypeScript. Pergunta aberta: a regra vale também para os testes?
+- `useDadosDoVoo` reajusta o estado durante a renderização quando o `sessaoId` muda na mesma montagem. É redundante, porque o `App` monta a tela com `key={sessao.id}`.
+- Se o main responder a `session:get-readings` com um `sessaoId` diferente do pedido, `useDadosDoVoo` descarta a resposta e a tela fica carregando para sempre (caso teórico; o handler sempre devolve o id pedido; débito do HITL-2).
+- Filtro `p.ativo` redundante em `useDadosDoVoo` (e em `use-active-parameters.ts`): `parameter:list-active` já devolve só os parâmetros ativos.
+- `use-dados-do-voo.ts` exporta `MARCA_PEDIDO_DADOS_DO_VOO` e `medirPrimeiroDesenho`, usados pela instrumentação de medição; saem junto com ela (ver "Em aberto" em architecture.md).
+
 Levantado no loop-005 (2.1, 2.2 e 3.2); débitos não bloqueantes, aguardam decisão humana.
 
-- Cálculo de horas, minutos e segundos repetido em `formatarDuracaoDoVoo` e `formatarDuracaoPorExtenso` (`format-flight-time.ts`).
 - `flight-card.tsx` compara o texto devolvido pelo formatador com a constante `DURACAO_INDISPONIVEL` para montar o `aria-label`. Alternativa levantada no 2.2: o formatador devolver `null` quando a duração não pode ser calculada.
-- Estilo "visualmente oculto" do título do painel é inline em `App.tsx`. Decidir se vira classe utilitária em CSS (ou componente) reutilizável.
+- Estilo "visualmente oculto" do título do painel é inline em `App.tsx`. A classe utilitária `.visualmente-oculto` foi criada no loop-006 (ver "Estilos e fontes"); falta o h1 do painel passar a usá-la.
 - Estilos de título e a família de fonte repetidos entre as páginas e componentes novos (3.2).
 
 Levantado na revisão do loop-004 (3.2); débitos não bloqueantes, aguardam decisão humana.

@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import {
   SESSION_GET_ACTIVE,
   SESSION_LIST_ENDED,
+  SESSION_GET_READINGS,
   SESSION_STARTED,
   SESSION_ENDED,
   SESSION_END_FAILED,
@@ -10,7 +11,13 @@ import {
   CONNECTION_GET_STATE,
   CONNECTION_STATE_CHANGED,
 } from '../shared/ipc-channels'
-import type { EstadoConexao, PacoteDeLeituras, ParametroDeVoo, Sessao } from '../shared/types'
+import type {
+  EstadoConexao,
+  LeiturasDoVoo,
+  PacoteDeLeituras,
+  ParametroDeVoo,
+  Sessao,
+} from '../shared/types'
 
 contextBridge.exposeInMainWorld('electronApi', {
   getActiveSessao: (): Promise<Sessao | null> =>
@@ -18,6 +25,9 @@ contextBridge.exposeInMainWorld('electronApi', {
 
   listSessoesEncerradas: (): Promise<Sessao[]> =>
     ipcRenderer.invoke(SESSION_LIST_ENDED),
+
+  getLeiturasDoVoo: (sessaoId: string): Promise<LeiturasDoVoo> =>
+    ipcRenderer.invoke(SESSION_GET_READINGS, sessaoId),
 
   onSessionStarted: (callback: (sessao: Sessao) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, sessao: Sessao): void => {

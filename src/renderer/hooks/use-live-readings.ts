@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
 import { onParameterReadings } from '../ipc/parameter-ipc'
 import type { EstadoConexao, Sessao } from '../../shared/types'
 
-/** Tempo sem pacote novo, com a sessão ativa, após o qual os valores viram "—". */
-export const SEM_DADOS_LIMITE_MS = 2000
+import { SEM_DADOS_LIMITE_MS } from '../components/limites-de-tempo'
 
 interface EstadoLeituras {
   sessaoId: string | null

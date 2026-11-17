@@ -3,13 +3,14 @@
 > Propósito: Diretrizes de usabilidade e acessibilidade.
 > Atualizar quando: uma diretriz mudar ou um teste com usuários trouxer um aprendizado.
 > Relacionados: [../product/product.md](../product/product.md)
-> Última atualização: 2026-11-17 · loop-005
+> Última atualização: 2026-11-17 · loop-006
 
 ## Princípios
 
 - **Leitura rápida primeiro.** O piloto está com atenção dividida entre o simulador e o painel. Toda informação relevante é visível sem rolagem e sem abrir submenus. (Exceção aceita no loop-003: com 12 cards no painel de tempo real, larguras de 900px ou menos podem exigir rolagem; ver [design.md](design.md).)
+  - Exceção do debriefing (loop-006, UC-005): o princípio vale para o voo ao vivo. No debriefing o piloto não está voando, e a tela do voo (reprodutor, trajetória, painel de instrumentos e perfil vertical) exige rolagem vertical. Débito: ao rolar até o perfil, os controles de reprodução saem da vista (ver [design.md](design.md), "Em aberto").
 - **Interações breves.** Qualquer ação no painel de tempo real é concluída em no máximo um clique ou tecla. Fluxos que exigem mais de uma etapa pertencem ao debriefing, não ao painel de voo.
-- **Foco por demanda.** O piloto pode maximizar qualquer seção ou gráfico individualmente para ter foco maior naquele dado. A maximização não altera os dados exibidos, apenas a área de visualização. (No painel de tempo real, a maximização ficou fora do loop-002 e é item do backlog.)
+- **Foco por demanda.** O piloto pode maximizar qualquer seção ou gráfico individualmente para ter foco maior naquele dado. A maximização não altera os dados exibidos, apenas a área de visualização. (No painel de tempo real, a maximização ficou fora do loop-002 e é item do backlog; no debriefing, ficou fora do loop-006, também no backlog.)
 - **Estado sempre visível.** A interface sempre mostra se a sessão está ativa, encerrada ou se não há conexão com o simulador. Nunca deixa o piloto adivinhar o estado do sistema.
 - **Sem surpresas.** Nenhuma ação destrutiva (ex.: encerramento de sessão) é executada sem que o sistema confirme visualmente o que aconteceu.
 
@@ -19,7 +20,7 @@
 - Todos os elementos interativos são acessíveis por teclado (Tab, Enter, Esc).
 - Gráficos e indicadores numéricos têm texto alternativo ou rótulo visível com o valor atual, para que a informação não dependa só de cor.
 - Cores não são o único meio de distinguir estados (ex.: sessão ativa vs. encerrada usa cor + rótulo de texto).
-- O "—" de sem sinal e o "N/A" de não aplicável usam `color-text-secondary` (não `color-text-disabled`, que fica abaixo de 4,5:1).
+- O "—" de sem sinal e o "N/A" de não aplicável usam `color-text-secondary` (não `color-text-disabled`, que fica abaixo de 4,5:1). No painel de instrumentos escuro do debriefing, usam `color-panel-muted` (#A8A8A8), com cerca de 5,3:1 sobre `color-panel-bg` (loop-006; ver [design.md](design.md)).
 
 ### Leitor de tela no painel de tempo real (UC-002)
 
@@ -44,11 +45,12 @@ Foco ao trocar de tela (decisão do HITL-3 do loop-005):
 - Ao trocar de tela, o foco vai para o título da tela nova (h1 com `tabIndex={-1}`).
 - O painel não tem título visível; tem um h1 visualmente oculto "Painel de tempo real", que recebe o foco ao ir ao painel pela barra e na volta automática vinda de outra tela. A carga inicial do app não move o foco.
 - Ir para "Voos" pela barra: foco no título "Voos".
-- Abrir um voo: foco no botão "Voltar à lista" (exceção decidida), que tem `aria-describedby` apontando para o título "Voo de dd/mm/aaaa" e o aviso "Debriefing disponível em breve", para que o leitor de tela leia os dois.
+- Abrir um voo: foco no botão "Voltar à lista" (exceção decidida no loop-005 e mantida no HITL-1 do loop-006), que tem `aria-describedby` apontando para o título "Voo de dd/mm/aaaa" e para a linha "Início HH:mm · Duração ...", com a duração por extenso. No voo sem leituras, o `aria-describedby` inclui também a mensagem "Nenhuma leitura gravada neste voo.". Como o foco vai ao botão na montagem, durante o carregamento, a mensagem entra na descrição depois; por isso ela também tem `role="status"` (rodada curta do loop-006). O aviso "Debriefing disponível em breve" deixou de existir.
 - Voltar do voo à lista: foco no card de origem quando a lista carrega; se o card não estiver mais na lista, foco no título "Voos".
 
 Teclado:
 - Tab percorre os botões da barra ("Painel", "Voos") e os cards da lista; Enter abre o voo; Esc na tela do voo volta à lista.
+- Na tela do voo (loop-006), Tab percorre "Voltar à lista", Reproduzir/Pausar, as velocidades 1×, 4× e 16× e a linha do tempo. As setas movem a linha do tempo em passos de 1 s. Esc volta à lista e para a reprodução. Sem atalhos novos (decisão do HITL-1 do loop-006; espaço para Reproduzir ficou de fora).
 
 Leitor de tela:
 - A navegação é um `<nav aria-label="Navegação principal">`; o botão da seção atual tem `aria-current="page"`.
@@ -58,7 +60,32 @@ Leitor de tela:
 Débitos de acessibilidade (revisão do loop-005; decisão do HITL-3: débito):
 - O estado vazio da lista não é anunciado; o carregando com `role="status"` é montado já com o texto (mesmo risco de não anúncio descrito acima).
 - Ao voltar do voo, o foco fica no `body` enquanto a lista é buscada de novo, e permanece lá se a busca falhar (o erro é anunciado por `role="alert"`).
-- Na tela do voo, a duração aparece só em h:mm:ss, sem versão por extenso para leitor de tela (tratar no UC-005).
+
+### Leitor de tela no debriefing (UC-005, loop-006)
+
+- Duração por extenso: na linha do cabeçalho, o h:mm:ss visível leva `aria-hidden` e um texto visualmente oculto (classe `.visualmente-oculto`) traz a duração por extenso, no formato do card de sessão ("1 hora, 12 minutos e 5 segundos"); duração inválida vira "indisponível".
+- Reprodutor:
+  - a seção tem rótulo "Reprodução do voo";
+  - o botão alterna o nome acessível entre "Reproduzir o voo" e "Pausar";
+  - as velocidades ficam num grupo "Velocidade de reprodução", com `aria-pressed` na selecionada;
+  - o texto visível "h:mm:ss de h:mm:ss · HH:mm:ss" leva `aria-hidden`;
+  - a linha do tempo tem o rótulo oculto "Instante do voo" e `aria-valuetext` por extenso: "<decorrido por extenso> de <duração por extenso>, HH:mm:ss" (ex.: "12 minutos e 5 segundos de 1 hora, 2 minutos e 3 segundos, 14:17:05").
+- Painel de instrumentos: cada instrumento é um grupo (`role="group"`) com `aria-label` no formato do painel de tempo real, com os parâmetros separados por vírgula: "<rótulo>: <valor> <unidade>", "<rótulo>: não aplicável", "<rótulo>: sem dados" ou "<rótulo>: sem dados neste voo". O desenho do instrumento leva `aria-hidden`. Sem `aria-live`.
+- Trajetória e perfil vertical: o SVG tem `role="img"` e `aria-label` com o valor do instante:
+  - trajetória: "Trajetória do voo, com o norte para cima. Posição no instante: <Latitude> <valor>, <Longitude> <valor>" ou "... Posição no instante: sem dados";
+  - perfil: "Perfil vertical do voo: <rótulo> de <mínimo> a <máximo> <unidade>; no instante, <valor com unidade, ou "—">".
+  - Os eixos do perfil levam `aria-hidden`.
+- Estados: o carregando usa `role="status"`; o erro, `role="alert"`; a mensagem de voo sem leituras, `role="status"` (além de entrar no `aria-describedby` de "Voltar à lista").
+
+Conferências manuais com NVDA a fazer (teste no Windows do loop-006):
+- leitura em dobro nos grupos dos instrumentos (`aria-label` do grupo e texto interno visível), como já registrado para os cards do painel;
+- leitura de "×" nas velocidades, de "°" e de "−" (sinal de menos tipográfico) nos valores;
+- o `aria-valuetext` da linha do tempo durante a reprodução, que muda a cada segundo e pode ser anunciado a cada segundo.
+
+Perguntas de diretriz pendentes (revisão de usabilidade do loop-006, sem decisão humana):
+- O alvo mínimo de 44×44px vira diretriz? Hoje os botões de velocidade têm 48×36px e o polegar da linha do tempo é menor.
+- O contraste gráfico mínimo de 3:1 (contornos de componentes, traços e partes de gráficos que carregam informação) vira diretriz? No loop-006 ele foi aplicado ao tracejado da trajetória e à alavanca de mistura, mas não está escrito aqui.
+- "N/A mantém a unidade" (decisão do HITL-1 do loop-003 para o painel de tempo real) vale também no debriefing? Hoje a unidade some nos instrumentos e no perfil vertical.
 
 ## Feedback e mensagens de erro
 
@@ -91,15 +118,48 @@ Débitos de acessibilidade (revisão do loop-005; decisão do HITL-3: débito):
 | Nenhuma sessão encerrada (vale também quando só existe a sessão ativa) | "Nenhum voo registrado. Inicie o simulador e ligue o motor para começar." |
 | Falha na primeira carga da lista | "Não foi possível carregar a lista de voos. Feche e abra o aplicativo para tentar de novo." |
 | Rótulo da duração no card | "Duração" |
-| Título da tela do voo | "Voo de dd/mm/aaaa" |
-| Rótulos da tela do voo | "Data", "Hora de início", "Duração" |
-| Aviso da tela do voo | "Debriefing disponível em breve" |
-| Botão da tela do voo | "Voltar à lista" |
 | Itens da navegação | "Painel", "Voos" |
+
+Os textos da tela do voo estão em "Debriefing (UC-005)", abaixo. Os da tela provisória ("Data", "Hora de início", "Duração" e "Debriefing disponível em breve") saíram no loop-006.
 
 - O erro não tem nova tentativa automática nem botão; a mensagem orienta a reabrir o app (HITL-1 do loop-005).
 - Falha numa nova busca com a lista já carregada (ex.: após uma sessão encerrar): a lista anterior é mantida e a falha só vai para o log. Após um erro na primeira carga, um encerramento de sessão posterior busca de novo e, se der certo, a lista substitui o erro.
 - Uma sessão encerrada em silêncio na abertura do app só aparece ao reabrir a lista.
+
+### Debriefing (UC-005)
+
+Textos aprovados no loop-006 (HITL-1 e HITL-3):
+
+| Situação | Texto |
+|---|---|
+| Título da tela do voo | "Voo de dd/mm/aaaa" |
+| Linha abaixo do título | "Início HH:mm · Duração h:mm:ss" (leitor de tela: duração por extenso) |
+| Botão do cabeçalho | "Voltar à lista" |
+| Carregando (só após 500 ms) | "Carregando dados do voo..." |
+| Falha ao carregar | "Não foi possível carregar os dados do voo. Volte à lista e abra o voo de novo." |
+| Voo sem nenhuma leitura | "Nenhuma leitura gravada neste voo." |
+| Rótulo da seção de reprodução (leitor de tela) | "Reprodução do voo" |
+| Botão de reprodução (leitor de tela) | "Reproduzir o voo" / "Pausar" |
+| Grupo de velocidades (leitor de tela) | "Velocidade de reprodução" |
+| Velocidades | "1×", "4×", "16×" |
+| Tempo do reprodutor | "h:mm:ss de h:mm:ss · HH:mm:ss" (decorrido, duração e hora local do instante) |
+| Linha do tempo (leitor de tela) | rótulo "Instante do voo"; valor "<decorrido por extenso> de <duração por extenso>, HH:mm:ss" |
+| Títulos das seções | "Trajetória", "Painel de instrumentos", "Perfil vertical" |
+| Trajetória indisponível (voo sem latitude e longitude) | "Trajetória indisponível: este voo não tem latitude e longitude gravadas (por exemplo, voos gravados antes da v0.3.0)." |
+| Legenda do mapa | "Linha azul contínua: trecho já voado. Tracejado: restante. Falhas na linha: sem dados. A aeronave aponta para o rumo magnético do instante; sem rumo, aparece como um círculo." |
+| Parâmetro aplicável sem nenhuma leitura no voo (instrumentos) | "Sem dados neste voo" |
+| Perfil sem altitude no voo | "<rótulo>: Sem dados neste voo" (ex.: "Altitude MSL: Sem dados neste voo") |
+| Parâmetro sem leitura nos 2 s até o instante | "—" |
+| Parâmetro que a aeronave não possui | "N/A" |
+| Legendas dentro dos mostradores (desenho, oculto do leitor de tela) | "KT", "ALT ×100 FT", "RPM ×100", "FPM ×100", "▲ SOBE  ▼ DESCE" |
+
+- Os rótulos dos instrumentos são os rótulos dos parâmetros ("Velocidade IAS", "Altitude MSL"...), não os nomes dos instrumentos (decisão do HITL-1 do loop-006).
+- A legenda do mapa não depende só do nome da cor: diz também "contínua" e "tracejado". O texto foi aprovado no HITL-3, antes de a correção da rodada curta trocar o tracejado do trecho restante por um pontilhado (ver [design.md](design.md)); no HITL-4 do loop-006 ficou decidido manter "Tracejado".
+- "Trajetória indisponível" cita a v0.3.0 só como exemplo, porque o voo é detectado pela falta de leituras, não pela versão (decisão do HITL-1 do loop-006). O texto foi aprovado como está no HITL-3.
+- O erro não tem nova tentativa automática; reabrir o voo carrega os dados de novo.
+- Precedência dos estados de um parâmetro: N/A, depois "Sem dados neste voo", depois "—", depois o valor.
+- Fora da escala do mostrador, o ponteiro para no limite e o número mostra o valor real (com as regras de formatação abaixo: flapes ficam em 0..100 e IAS negativa vira 0).
+- A reprodução abre pausada em 0:00:00, a 1×; pausa sozinha no fim; Reproduzir no fim recomeça do zero.
 
 ### Painel de tempo real (UC-002)
 
@@ -181,3 +241,13 @@ Regras da lista de voos e da tela do voo (UC-004):
 - A hora de fim não aparece na lista nem na tela do voo.
 - Valor inválido, hora de fim ausente ou duração negativa aparecem como "—".
 - A duração por extenso do rótulo acessível está em "Navegação, lista de voos e tela do voo", na seção de acessibilidade.
+
+Regras do reprodutor do debriefing (UC-005, loop-006):
+
+| Valor | Formato | Exemplo |
+|---|---|---|
+| Tempo decorrido e duração | h:mm:ss, como a duração acima, em segundos inteiros | `0:12:05 de 1:02:03` |
+| Hora local do instante | HH:mm:ss, 24 h, no fuso local | `14:17:05` |
+| Marcas de tempo do perfil vertical | h:mm:ss, a 0, 25, 50, 75 e 100 % da duração | `0:15:30` |
+
+- Para o leitor de tela, o tempo decorrido e a duração vão por extenso, no mesmo formato da duração do card (ver "Leitor de tela no debriefing").

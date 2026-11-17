@@ -3,7 +3,7 @@
 > Propósito: Visão geral da arquitetura no modelo C4, diretrizes arquiteturais e registro das decisões.
 > Atualizar quando: uma decisão arquitetural for tomada ou revista.
 > Relacionados: [domain_model.md](domain_model.md), [code_conventions.md](code_conventions.md)
-> Última atualização: 2026-11-17 · loop-005
+> Última atualização: 2026-11-17 · loop-006
 
 ## Visão geral
 
@@ -56,7 +56,7 @@ C4Container
 - O banco SQLite fica em `%APPDATA%\BlackboxSimulator\data.db` para garantir persistência entre atualizações do instalador. Esse caminho é resolvido por `app.getPath('appData')` mais a pasta fixa `BlackboxSimulator`, e por isso não depende do nome do app nem do instalador.
 - O produto suporta, por enquanto, só aeronaves de um motor (decisão do HITL-3 do loop-003). A coleta lê o motor 1 do simulador (sufixo `:1` nas SimVars de motor e `_1` nos slugs); multimotor está fora do escopo.
 - Os identificadores dos parâmetros (slugs) vêm de uma fonte única, `PARAMETER_IDS` em `src/shared/parameter-ids.ts`, usada pelo main e pelo renderer. Só os seeds das migrations SQL repetem os slugs, porque o SQL não importa a constante TypeScript.
-- O renderer não mantém estado de sessão próprio: a fonte da verdade sobre sessão, conexão e leituras é o main, consultado por invoke ou recebido por push. O renderer pode guardar estado de exibição temporário, derivado do que o main enviou, enquanto a tela estiver aberta: a sessão encerrada, os últimos valores congelados e o indicador `semDados` (ADR-007). Esse estado não é persistido nem enviado de volta ao main. Desde o loop-004, inclui a sessão que o renderer marca como encerrada ao receber `session:end-failed` (`status: 'encerrada'`, `encerradaEm: null`): no banco ela continua ativa até a próxima abertura do app (ADR-009). Desde o loop-005, inclui também a tela atual (`painel`, `voos` ou `voo`) e a `Sessao` aberta na tela do voo, vinda da lista (ADR-010).
+- O renderer não mantém estado de sessão próprio: a fonte da verdade sobre sessão, conexão e leituras é o main, consultado por invoke ou recebido por push. O renderer pode guardar estado de exibição temporário, derivado do que o main enviou, enquanto a tela estiver aberta: a sessão encerrada, os últimos valores congelados e o indicador `semDados` (ADR-007). Esse estado não é persistido nem enviado de volta ao main. Desde o loop-004, inclui a sessão que o renderer marca como encerrada ao receber `session:end-failed` (`status: 'encerrada'`, `encerradaEm: null`): no banco ela continua ativa até a próxima abertura do app (ADR-009). Desde o loop-005, inclui também a tela atual (`painel`, `voos` ou `voo`) e a `Sessao` aberta na tela do voo, vinda da lista (ADR-010). Desde o loop-006, inclui os dados carregados da tela do voo (catálogo e `LeiturasDoVoo`) e o estado da reprodução (instante, velocidade, tocando ou pausado). Não há cache: o `App` monta a tela com `<FlightDetailPage key={sessao.id}>`, e esse estado é descartado ao sair da tela ou abrir outro voo (ADR-011).
 - A janela principal (`BrowserWindow` em `src/main/index.ts`) tem `minWidth: 640` e `minHeight: 480` (HITL-3 do loop-005), para a barra superior não cortar o indicador de estado.
 - No máximo uma sessão ativa na memória do main (`CollectionService.sessaoAtiva`); `session:get-active` lê essa memória, não o banco. No banco a regra é eventual: uma falha ao gravar o encerramento seguida de religamento deixa duas sessões ativas, e a rotina `encerrarSessoesAtivasAnteriores`, chamada a cada abertura logo depois das migrations, encerra todas menos a mais recente (ADR-009). Não há restrição no banco que impeça duas ativas (ver "Em aberto").
 
@@ -71,6 +71,7 @@ Todos definidos em `src/shared/ipc-channels.ts` e expostos pelo preload (ADR-005
 | `session:ended` | push | main → renderer | `Sessao` como ficou gravada (status `encerrada`, `encerradaEm` preenchido). Emitido pelo encerramento ao vivo só depois de gravado no banco (loop-004). O encerramento na abertura não emite | loop-001 |
 | `session:end-failed` | push | main → renderer | `Sessao` como estava na memória (ainda `ativa`, `encerradaEm: null`), quando a gravação do encerramento ao vivo falha. O renderer a mostra como encerrada (estado de exibição) com notificação de erro | loop-004 |
 | `session:list-ended` | invoke | renderer → main | retorna `Sessao[]` com as sessões encerradas (`listarSessoesEncerradas`: `WHERE status = 'encerrada' ORDER BY iniciada_em DESC, rowid DESC`), da mais recente para a mais antiga; a ativa não entra. Lê do banco. Numa falha, o handler loga e rejeita. Exposto como `listSessoesEncerradas()` (UC-004) | loop-005 |
+| `session:get-readings` | invoke | renderer → main | recebe `sessaoId` e retorna `LeiturasDoVoo` (séries em colunas, com instantes em ms UTC) com as leituras do voo encerrado entre a hora de início e a hora de fim, inclusive (`listarLeiturasDoVoo`). Lê do banco a cada chamada, sem cache. `sessaoId` inválido, sessão inexistente, ativa ou sem hora de fim, ou falha na consulta: o handler loga e rejeita. Exposto como `getLeiturasDoVoo(sessaoId)` (UC-005, ADR-011) | loop-006 |
 | `parameter:list-active` | invoke | renderer → main | retorna `ParametroDeVoo[]` com `ativo = true` (RN-002) | loop-002 |
 | `parameter:readings` | push | main → renderer | `PacoteDeLeituras`, um por ciclo de coleta (1 s), só com sessão ativa, sem os parâmetros N/A da sessão | loop-002 |
 | `connection:get-state` | invoke | renderer → main | retorna `EstadoConexao` | loop-002 |
@@ -196,14 +197,39 @@ Decisão:
 - `session:started` leva sempre de volta ao painel, de qualquer tela (UC-002 inalterado). `session:ended` não troca de tela.
 - A lista é buscada a cada abertura da tela (`useSessoesEncerradas`, chamado pela página da lista) e de novo a cada `session:ended`; `session:end-failed` não dispara nova busca. Respostas antigas são descartadas. Erro na primeira carga mostra mensagem, sem nova tentativa automática; erro numa nova busca com a lista já carregada mantém a lista anterior e só loga; um `session:ended` posterior com busca bem-sucedida troca o erro pela lista. Indicador de carregamento só depois de 500 ms (`CARREGANDO_LIMITE_MS`).
 - O encerramento silencioso na abertura (ADR-009) não emite push: uma sessão encerrada assim só aparece na lista quando ela é reaberta.
-- Foco ao trocar de tela (HITL-3): vai para o título da tela nova. O painel tem um h1 visualmente oculto "Painel de tempo real" (`tabIndex={-1}`), focado ao chegar pela barra ou pela volta automática vinda de outra tela; a carga inicial não move o foco. Ao abrir um voo, o foco vai para "Voltar à lista", com `aria-describedby` apontando para o título e o aviso. Ao voltar à lista, o foco volta ao card de origem; sem card de origem, ou se ele sumiu, vai para o título "Voos". Esc na tela do voo volta à lista.
+- Foco ao trocar de tela (HITL-3): vai para o título da tela nova. O painel tem um h1 visualmente oculto "Painel de tempo real" (`tabIndex={-1}`), focado ao chegar pela barra ou pela volta automática vinda de outra tela; a carga inicial não move o foco. Ao abrir um voo, o foco vai para "Voltar à lista", com `aria-describedby` apontando para o título e o aviso (revisto no loop-006, ver abaixo). Ao voltar à lista, o foco volta ao card de origem; sem card de origem, ou se ele sumiu, vai para o título "Voos". Esc na tela do voo volta à lista.
+Revisão (loop-006): o UC-005 preencheu a tela do voo com o debriefing (cabeçalho, reprodução, mapa da trajetória, painel de instrumentos e perfil vertical; carga e exibição na ADR-011), e o aviso da tela provisória saiu. Ao abrir um voo, o foco continua indo para "Voltar à lista" (HITL-1 do loop-006), agora com `aria-describedby` apontando para o título e para a linha de início e duração. No voo sem leituras, o `aria-describedby` inclui também a mensagem "Nenhuma leitura gravada neste voo." (`flight-detail-sem-leituras`), que fica numa região `role="status"`: o foco vai ao botão na montagem, durante o carregamento, antes de a mensagem existir, e o `role="status"` garante o anúncio (rodada curta do HITL-3). Esc e "Voltar à lista" param a reprodução, e `session:started` continua levando ao painel.
 Consequências:
 - Sem dependência nova e sem URL; não há histórico de navegação (voltar do navegador) nem link direto para uma tela.
 - A lista é relida do banco a cada abertura, sem cache; com volume crescente pode ficar lenta (ver "Em aberto").
 - Esc é ouvido no `document` inteiro enquanto a tela do voo está aberta; pode conflitar com atalhos futuros.
 - Ao voltar do voo, o foco fica no `body` enquanto a lista é buscada de novo, e permanece lá se a busca falhar (débito da rodada curta do HITL-3).
 - Clicar no botão da tela atual não dá retorno visual (débito).
-- O UC-005 vai preencher a tela do voo, hoje provisória.
+- O UC-005 vai preencher a tela do voo, hoje provisória. (Feito no loop-006; ver a revisão acima e a ADR-011.)
+
+---
+
+ADR-011
+Status: aceita (loop-006)
+Contexto: O UC-005 mostra o debriefing de um voo encerrado: os 12 parâmetros no painel de instrumentos, a trajetória, o perfil vertical e uma reprodução que percorre o voo a 1×, 4× ou 16×. Era preciso decidir como as leituras chegam do main ao renderer (um voo de 3 h tem 129.600 linhas), onde se faz o corte na hora de fim (as leituras da espera de 15 s do UC-003 ficam gravadas depois de `encerradaEm`), como o valor de cada instante é obtido sem interpolar, onde se reduzem os pontos dos gráficos e como a reprodução é medida, sem bloquear a coleta de uma sessão ativa.
+Decisão:
+- Canal invoke `session:get-readings` (`sessaoId` → `LeiturasDoVoo`), sem cache no main nem no renderer: reabrir o voo carrega de novo (P9 do loop-006). O handler valida o `sessaoId`, loga e relança as falhas.
+- Formato em colunas (HITL-1, opção a): uma `SerieDeLeituras` por parâmetro com leitura, com `instantes` em ms UTC em ordem crescente e `valores`, em vez de uma linha por leitura ou `Float64Array`. Fica em poucos MB no IPC num voo longo.
+- Corte no main: `listarLeiturasDoVoo` (`reading-repository.ts`) lê a sessão com `buscarSessaoPorId`, lança erro se ela não existe, está ativa ou não tem hora de fim, e consulta `timestamp BETWEEN iniciada_em AND encerrada_em` com `.all()`, pelo índice `idx_leituras_sessao_timestamp` (sem migration nova e sem `rowid` no `ORDER BY`). O agrupamento em séries fica na função pura `agruparEmSeries`, que descarta com log slugs desconhecidos e `timestamp` inválido.
+- Carga no renderer: `useDadosDoVoo` (`hooks/`) pede juntos o catálogo (`parameter:list-active`) e as leituras, mostra o carregando só depois de `CARREGANDO_LIMITE_MS` (500 ms), loga e mostra erro numa falha e descarta respostas que chegam depois de desmontar ou de outro voo. A tela do voo é montada com `key={sessao.id}`, e cada voo começa do zero.
+- Valor no instante (P5 e P6 do loop-006): a última leitura até o instante, por busca binária, sem interpolar; com `SEM_DADOS_LIMITE_MS` (2000 ms) ou mais desde a última leitura, o valor vira "—". A precedência por parâmetro é N/A, depois "Sem dados neste voo", depois "—", depois o valor. Os instrumentos, o mapa e o perfil usam o segundo inteiro mostrado no tempo.
+- Redução de pontos só no desenho (P11): o mapa e o perfil cortam as séries em falhas de mais de 2 s e guardam, por balde, a primeira leitura, o mínimo, o máximo e a última. Os valores exibidos vêm sempre das séries completas. Redução e projeção ficam em `useMemo`; cada passo da reprodução faz só as buscas binárias.
+- Reprodução: funções puras (`avancarReproducao`, `alternarReproducao` em `pages/flight-detail/reproducao.ts`), sem timer e sem `Date.now()`, mais o hook `use-reproducao` (em `pages/flight-detail/`) com `setInterval` de 250 ms só enquanto toca, limpo ao pausar e ao desmontar. Abre pausada em 0:00:00, pausa no fim, e Reproduzir no fim volta ao zero.
+- Funções puras e componentes do debriefing ficam em `pages/flight-detail/` (HITL-1); as constantes de tempo compartilhadas, sem React, em `components/limites-de-tempo.ts` (rodada curta do HITL-3).
+- Instrumentação de medição (HITL-3): o handler loga com `console.info` a quantidade de leituras e o tempo da consulta, e o renderer marca `performance.measure('debriefing:primeiro-desenho')`. Fica até o teste no Windows e sai num loop seguinte.
+Consequências:
+- better-sqlite3 é síncrono: carregar um voo longo bloqueia o main durante a consulta, o agrupamento e a serialização, e pode atrasar a coleta de uma sessão ativa. A consulta de 3 h (129.600 linhas) leva cerca de 58 ms no macOS; falta medir no Windows, com agrupamento e serialização (ver "Em aberto").
+- O corte por `BETWEEN` compara texto e depende do formato ISO 8601 UTC de tamanho fixo gravado nas leituras e na sessão (ver "Em aberto").
+- Sem cache, cada abertura relê o voo do banco; a memória do renderer é liberada ao sair da tela.
+- Em 0:00:00 os instrumentos podem mostrar "—", porque a primeira leitura chega até 1 s depois do início.
+- Se o main responder com um `sessaoId` diferente do pedido, a tela fica carregando para sempre (caso teórico, débito do HITL-2).
+- O antimeridiano e leituras 0,0 do menu distorcem a escala do mapa (risco aceito na 1.2).
+- `console.info` e `performance.mark` ficam no código de produção até a instrumentação sair.
 
 ---
 
@@ -212,7 +238,7 @@ Consequências:
 Levantado na revisão do loop-003 (3.2 e 3.4); aguarda decisão humana.
 
 - Funções puras em `shared/`: `src/shared/parameter-ids.ts` exporta `isParametroId`, mas a convenção de `shared/` fala só em tipos e constantes (code_conventions.md). Decidir se funções puras são aceitas em `shared/`.
-- Tipagem dos IDs: `ParametroDeVoo.id`, `LeituraDeParametro.parametroId`, `LeituraDoPacote.parametroId` e o painel ainda usam `string` (com `readonly string[]` no painel e na coleta). Decidir se passam a `ParametroId`.
+- Tipagem dos IDs: `ParametroDeVoo.id`, `LeituraDeParametro.parametroId`, `LeituraDoPacote.parametroId` e o painel ainda usam `string` (com `readonly string[]` no painel e na coleta). Decidir se passam a `ParametroId`. Desde o loop-006 a tipagem é mista: `SerieDeLeituras.parametroId` é `ParametroId`, mas o debriefing indexa as séries por `string` (`ReadonlyMap<string, SerieDeLeituras>`).
 
 Levantado no loop-004 (3.1 e 3.4); débito aceito no HITL-3, aguarda decisão humana sobre a solução.
 
@@ -223,6 +249,12 @@ Levantado no loop-005 (1.2, 2.1 e 3.1); débito aceito, aguarda decisão humana.
 
 - Volume da lista de voos: `session:list-ended` devolve todas as sessões encerradas, sem paginação, e a consulta (`WHERE status = 'encerrada' ORDER BY iniciada_em DESC, rowid DESC`) não tem índice próprio. Com o volume crescente previsto na RN-005, decidir paginação e um índice para a consulta na tabela `sessoes`. Pode virar item de backlog.
 - A ordenação por `iniciada_em` compara texto e depende do formato ISO 8601 UTC gravado; mudar o formato quebra a ordem.
+
+Levantado no loop-006 (1.2, 2.1, 3.4 e HITL-3); débito aceito, aguarda decisão humana.
+
+- Desempenho do main em voos longos (ADR-011): `session:get-readings` roda síncrono no main (better-sqlite3) e pode atrasar a coleta de uma sessão ativa. A consulta de um voo de 3 h (129.600 linhas) leva cerca de 58 ms no macOS; falta medir no Windows, incluindo o agrupamento em séries e a serialização do IPC. A solução, se preciso, fica para outro loop.
+- Corte por `BETWEEN` em texto ISO: `listarLeiturasDoVoo` compara `timestamp`, `iniciada_em` e `encerrada_em` como texto e depende do formato ISO 8601 UTC de tamanho fixo; mudar o formato quebra o corte (mesma dependência da ordenação da lista de voos).
+- Instrumentação de medição: o `console.info` do handler de `session:get-readings` e o `performance.mark`/`performance.measure` de `use-dados-do-voo.ts` ficam até o teste no Windows (decisão do HITL-3) e saem num loop seguinte.
 
 Débitos técnicos ligados à arquitetura (aceitos no loop-003):
 - Falha numa migration interrompe a inicialização e o app não abre; o erro aparece só no log (HITL-2: mostrar mensagem ao piloto num loop futuro).

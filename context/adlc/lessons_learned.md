@@ -3,7 +3,7 @@
 > Propósito: O que cada loop ensinou, e onde a lição foi aplicada no contexto.
 > Atualizar quando: no final de cada loop.
 > Relacionados: [loop_report.md](loop_report.md)
-> Última atualização: 2026-11-17 · loop-005
+> Última atualização: 2026-11-17 · loop-006
 
 ## Lições
 
@@ -167,6 +167,41 @@ Loop: loop-005
 O que aconteceu: A 1.1 propôs mostrar a aeronave no card do voo porque o campo existe na Sessão. O refinamento técnico (1.2) descobriu que `aeronave` nunca foi gravado (criado com `''`, sem leitura do SimConnect) e que os aeródromos ficam sempre `null`. No HITL-1, a aeronave saiu do card e virou item novo do backlog.
 Lição: Antes de especificar que o produto exibe um dado, confirmar no código que ele é de fato gravado. Um campo no modelo de domínio não garante que tenha valor. Na 1.1, dados a exibir vindos do banco devem entrar como "a confirmar no refinamento técnico", e o domain_model.md deve indicar campos ainda não preenchidos.
 Onde foi aplicada: loop-005, 1.2 e decisão 1 do HITL-1; domain_model.md (4.2) com os campos gravados vazios; backlog item 9.
+
+LL-024
+Data: 2026-11-17
+Loop: loop-006
+O que aconteceu: O protótipo da tela do voo ("Debriefing · opção D") foi aprovado antes do loop. A 1.1 partiu dele: as questões que ele já levantava (faixas de cor por aeronave, ângulo dos flapes, marcadores de evento, redução de pontos) viraram perguntas objetivas, e as 16 recomendações foram aceitas na opção (a). Os agentes usaram o protótipo como referência visual na implementação e na revisão.
+Lição: Para itens com interface nova e rica, aprovar um protótipo antes do loop reduz as perguntas abertas da 1.1 e dá aos agentes uma referência visual comum. As questões que o protótipo deixa em aberto devem ser anotadas junto com ele, para entrarem na 1.1 como perguntas.
+Onde foi aplicada: loop-006, "Referência de interface" e 1.1 em loop_reports/loop-006.md. Pendente: tornar a prática uma etapa recomendada antes do loop em agent_development_lifecycle.md (decisão do humano).
+
+LL-025
+Data: 2026-11-17
+Loop: loop-006
+O que aconteceu: Na rodada curta, o tracejado da trajetória restante foi escurecido para atingir 3:1 sobre o fundo. A revisão curta de usabilidade apontou que, com isso, o trecho voado (azul) e o restante ficaram com luminância parecida (cerca de 1,3:1), separados só pelo tracejado e pela espessura. A correção (pontilhado de 2 px contra contínuo de 4 px) entrou na própria rodada.
+Lição: Ao ajustar o contraste de um elemento, conferir também a relação dele com os elementos que precisa distinguir, não só com o fundo. Ajustes de contraste isolados podem apagar a distinção entre estados ou séries.
+Onde foi aplicada: loop-006, "Correção dos efeitos dos ajustes" em loop_reports/loop-006.md. Pendente: registrar em usability.md ou design.md (4.4, a conferir no HITL-4).
+
+LL-026
+Data: 2026-11-17
+Loop: loop-006
+O que aconteceu: O mapa da trajetória usa um SVG com viewBox de 1000×700 que escala com a tela. Sem `vector-effect: non-scaling-stroke`, a espessura e o tracejado definidos em unidades do viewBox encolhiam na tela, e o pontilhado de 2 px ficaria com cerca de 1 px, invalidando a medida de contraste e de distinção.
+Lição: Em SVG com viewBox que escala, traços cuja espessura ou tracejado precisam valer em px de tela (contraste, distinção, alvo visual) devem usar `vector-effect: non-scaling-stroke`. Medidas de acessibilidade em unidades do viewBox não garantem o tamanho visto.
+Onde foi aplicada: loop-006, trajectory-map (ajuste do orquestrador na rodada curta). Pendente: registrar no padrão de SVG acessível de code_conventions.md (4.2, a conferir no HITL-4).
+
+LL-027
+Data: 2026-11-17
+Loop: loop-006
+O que aconteceu: O foco vai para "Voltar à lista" na montagem da tela do voo, durante o carregamento. A mensagem "Nenhuma leitura gravada neste voo." só entra no `aria-describedby` depois, e o NVDA pode não anunciá-la. A correção foi dar `role="status"` ao próprio parágrafo condicional, mantendo o `aria-describedby`.
+Lição: Quando o foco é dado antes de a carga terminar, uma mensagem que aparece depois não é anunciada pelo `aria-describedby` do elemento focado. Ela precisa estar numa região viva; se a mensagem é condicional, a região viva pode ir no próprio elemento que aparece.
+Onde foi aplicada: loop-006, "Correção dos efeitos dos ajustes" em loop_reports/loop-006.md. Pendente: conferir com NVDA no teste manual no Windows e registrar em usability.md (4.4).
+
+LL-028
+Data: 2026-11-17
+Loop: loop-006
+O que aconteceu: Na 2.2 da rodada curta, o tester rodou o Prettier sem a configuração do projeto e reformatou um arquivo de teste fora do estilo (aspas, ponto e vírgula). Ele reformatou de volta, mas ficaram diferenças de quebra de linha em `flight-detail-page.test.tsx`.
+Lição: Agentes não devem rodar formatador sem a configuração do projeto. Enquanto o projeto não tiver config de Prettier (débito antigo), a formatação vale pelo lint e pelo estilo dos arquivos existentes.
+Onde foi aplicada: pendente (instrução nos agentes developer e tester, .bob e .claude, e a config de Prettier, decisões do humano).
 
 ## Modelo de lição
 
