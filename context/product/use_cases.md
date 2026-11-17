@@ -11,7 +11,7 @@
 |----|------|--------|
 | UC-001 | Iniciar sessão de coleta | Concluído |
 | UC-002 | Visualizar parâmetros em tempo real | Concluído |
-| UC-003 | Encerrar sessão de coleta | Em andamento |
+| UC-003 | Encerrar sessão de coleta | Concluído |
 | UC-004 | Selecionar voo para debriefing | Em aberto |
 | UC-005 | Visualizar dados do debriefing | Em aberto |
 | UC-006 | Coletar posição, motor e flapes | Concluído |

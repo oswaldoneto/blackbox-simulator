@@ -175,7 +175,7 @@ Consequências:
 - Prazo de 15 s na abertura: se o SimConnect demorar mais que isso, um voo em andamento é partido em dois (risco aceito no HITL-1). Abertura com motor parado em voo encerra a sessão restaurada.
 - Push de falha (`session:end-failed`) emitido antes de o renderer montar se perde.
 - Limitações conhecidas: sair ao menu e iniciar outro voo sem cortar o motor fica numa só sessão; simulador fechado com o motor ligado e outro voo carregado já com o motor ligado também (porque `lastEngineCombustion` não zera na queda de conexão); com motor parado no solo nesse caso, a sessão encerra com a hora do novo voo e a duração fica inflada. Pausa do simulador conta como tempo parado.
-- Riscos a confirmar no Windows: `SIM ON GROUND` no MSFS 2024 (hidroavião, quique, slew, menu). Como a definição é separada, a falha se limita a não encerrar.
+- `SIM ON GROUND` conferido no teste manual no Windows com o MSFS 2024 do loop-004 (v0.4.0), com o roteiro de 14 passos (voo normal, pane em voo, abertura do app, queda de conexão, pausa, menu e aeronaves diferentes). Como a definição é separada, uma falha futura se limita a não encerrar.
 - A migration 003 pode atrasar a primeira abertura em bancos grandes.
 - `encerrarSessao` e o encerramento da sessão restaurada não usam transação (sem risco hoje, uma única instrução de escrita); a transação da rotina é redundante (uma única instrução).
 - `fecharConexao()` não é chamado por ninguém (anterior ao loop).

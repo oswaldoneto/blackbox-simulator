@@ -4,7 +4,7 @@ Loop: 004
 Data de início: 2026-11-17
 Item do backlog: 3 — Encerrar sessão de coleta
 Caso de uso: UC-003
-Fase atual: Documentar (HITL-4 aprovado; aguardando o teste manual no Windows para encerrar)
+Fase atual: concluído
 
 ---
 HITL-1 aprovado em 2026-11-17
@@ -13,6 +13,8 @@ HITL-3 retorno: corrigir 2 ajustes de tela (mensagem de erro do encerramento e t
 HITL-2 (2ª rodada) aprovado em 2026-11-17, com revisão curta (usabilidade)
 HITL-3 aprovado em 2026-11-17
 HITL-4 aprovado em 2026-11-17 (encerramento condicionado ao teste manual no Windows)
+Teste manual no Windows com MSFS 2024 aprovado em 2026-11-17 (v0.4.0): roteiro de 14 passos (sessões antigas, voo normal, táxi, motor que volta, pane em voo, religamento, abertura do app, queda de conexão, pausa, menu, aeronaves)
+Loop encerrado em 2026-11-17
 
 ## 1.1 Especificação de negócio
 

@@ -75,7 +75,7 @@ src/
 - Tempo nos testes (loop-004):
   - Lógica medida pelo tempo das amostras (como o detector de encerramento) é uma função pura que recebe instantes explícitos (`timestamp` ISO 8601) em cada evento, sem timer nem `Date.now()` interno. Os testes passam os instantes à mão (ex.: 14 s não encerra, 15 s encerra), como em `detector-de-encerramento.test.ts`.
   - Prazos de relógio (`setTimeout`, como `VERIFICACAO_ABERTURA_MS` no `CollectionService` e os 4 s da notificação no renderer) são testados com fake timers do Vitest (`vi.useFakeTimers()` e avanço explícito do relógio).
-- `src/main/index.ts` não tem teste automatizado: a chamada da rotina de sessões antigas e a ligação dos eventos de encerramento e falha ao IPC são conferidas no roteiro manual no Windows (loop-004).
+- `src/main/index.ts` não tem teste automatizado: a chamada da rotina de sessões antigas e a ligação dos eventos de encerramento e falha ao IPC foram conferidas no roteiro manual no Windows do loop-004 (v0.4.0, aprovado em 2026-11-17).
 
 ## Commits
 
