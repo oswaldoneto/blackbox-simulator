@@ -1,5 +1,10 @@
+import { PARAMETER_IDS } from '../../shared/parameter-ids'
+
 /** Texto exibido no lugar do valor quando não há leitura válida (sem sinal). */
 export const SEM_VALOR = '—'
+
+/** Texto exibido no lugar do valor quando a aeronave não possui o item (RN-007). */
+export const NAO_APLICAVEL = 'N/A'
 
 /** Sinal de menos tipográfico (U+2212), usado em todos os valores negativos. */
 const SINAL_MENOS = '−'
@@ -30,6 +35,11 @@ const formatadorInteiro = new Intl.NumberFormat('pt-BR', {
 const formatadorUmaCasa = new Intl.NumberFormat('pt-BR', {
   minimumFractionDigits: 1,
   maximumFractionDigits: 1,
+})
+
+const formatadorCoordenada = new Intl.NumberFormat('pt-BR', {
+  minimumFractionDigits: 5,
+  maximumFractionDigits: 5,
 })
 
 /** Arredonda para `casas` decimais e devolve 0 (nunca −0) quando o resultado é zero. */
@@ -79,6 +89,33 @@ function formatarRolagem(valor: number): string {
   return `${absoluto} ${paraEsquerda ? 'E' : 'D'}`
 }
 
+/** Graus decimais com 5 casas, em valor absoluto, mais o hemisfério; zero sem letra. */
+function formatarCoordenada(valor: number, positivo: string, negativo: string): string {
+  const v = arredondar(valor, 5)
+  const absoluto = formatadorCoordenada.format(Math.abs(v))
+  if (v === 0) return absoluto
+  return `${absoluto} ${v > 0 ? positivo : negativo}`
+}
+
+function formatarLatitude(valor: number): string {
+  return formatarCoordenada(valor, 'N', 'S')
+}
+
+function formatarLongitude(valor: number): string {
+  return formatarCoordenada(valor, 'L', 'O')
+}
+
+/** Inteiro com ponto de milhar; só o sinal de menos aparece (ex.: manete em reverso). */
+function formatarInteiroComSinal(valor: number): string {
+  const v = arredondar(valor, 0)
+  return prefixoSinal(v, false) + formatadorInteiro.format(Math.abs(v))
+}
+
+function formatarFlapes(valor: number): string {
+  const v = Math.min(100, Math.max(0, arredondar(valor, 0)))
+  return formatadorInteiro.format(v)
+}
+
 function formatarGenerico(valor: number): string {
   const v = arredondar(valor, 1)
   return prefixoSinal(v, false) + formatadorUmaCasa.format(Math.abs(v))
@@ -93,18 +130,28 @@ export function formatParameterValue(parametroId: string, valor: number | null):
   if (valor === null || !Number.isFinite(valor)) return SEM_VALOR
 
   switch (parametroId) {
-    case 'altitude_msl':
+    case PARAMETER_IDS.ALTITUDE_MSL:
       return formatarAltitude(valor)
-    case 'airspeed_ias':
+    case PARAMETER_IDS.AIRSPEED_IAS:
       return formatarVelocidadeIndicada(valor)
-    case 'vertical_speed':
+    case PARAMETER_IDS.VERTICAL_SPEED:
       return formatarVelocidadeVertical(valor)
-    case 'heading_magnetic':
+    case PARAMETER_IDS.HEADING_MAGNETIC:
       return formatarRumo(valor)
-    case 'pitch':
+    case PARAMETER_IDS.PITCH:
       return formatarArfagem(valor)
-    case 'bank':
+    case PARAMETER_IDS.BANK:
       return formatarRolagem(valor)
+    case PARAMETER_IDS.LATITUDE:
+      return formatarLatitude(valor)
+    case PARAMETER_IDS.LONGITUDE:
+      return formatarLongitude(valor)
+    case PARAMETER_IDS.THROTTLE_1:
+    case PARAMETER_IDS.MIXTURE_1:
+    case PARAMETER_IDS.RPM_1:
+      return formatarInteiroComSinal(valor)
+    case PARAMETER_IDS.FLAPS:
+      return formatarFlapes(valor)
     default:
       return formatarGenerico(valor)
   }

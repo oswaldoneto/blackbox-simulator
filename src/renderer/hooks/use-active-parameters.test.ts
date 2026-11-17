@@ -25,14 +25,23 @@ describe('useActiveParameters', () => {
     vi.clearAllMocks()
   })
 
-  it('deve definir a ordem de exibição Altitude, IAS, Vel. vertical, Rumo, Arfagem, Rolagem', () => {
+  it('deve definir a ordem de exibição dos 12 parâmetros por grupos (CA-006-2)', () => {
     expect(PARAMETER_DISPLAY_ORDER).toEqual([
+      // Linha 1 (voo)
       'altitude_msl',
       'airspeed_ias',
       'vertical_speed',
       'heading_magnetic',
+      // Linha 2 (atitude e posição)
       'pitch',
       'bank',
+      'latitude',
+      'longitude',
+      // Linha 3 (motor e configuração)
+      'throttle_1',
+      'mixture_1',
+      'rpm_1',
+      'flaps',
     ])
   })
 
@@ -50,18 +59,24 @@ describe('useActiveParameters', () => {
 
   it('deve devolver só parâmetros ativos, na ordem de exibição (RN-002)', async () => {
     mockListActiveParametros.mockResolvedValue([
+      p('flaps'),
       p('bank'),
+      p('rpm_1'),
       p('pitch'),
+      p('longitude'),
       p('heading_magnetic'),
       p('inativo', false),
+      p('mixture_1'),
       p('vertical_speed'),
+      p('latitude'),
       p('airspeed_ias'),
+      p('throttle_1'),
       p('altitude_msl'),
     ])
 
     const { result } = renderHook(() => useActiveParameters())
 
-    await waitFor(() => expect(result.current.parametros).toHaveLength(6))
+    await waitFor(() => expect(result.current.parametros).toHaveLength(12))
     expect(result.current.parametros.map((x) => x.id)).toEqual([...PARAMETER_DISPLAY_ORDER])
     expect(result.current.erro).toBe(false)
   })

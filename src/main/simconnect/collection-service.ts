@@ -2,6 +2,8 @@ import { SimConnectClient } from './simconnect-client'
 import { criarSessao, buscarSessaoAtiva } from '../db/session-repository'
 import { inserirLeitura } from '../db/reading-repository'
 import { buscarParametrosAtivos } from '../db/parameter-repository'
+import { derivarParametrosNaoAplicaveis } from './parametros-nao-aplicaveis'
+import type { PerfilDaAeronave } from './parametros-nao-aplicaveis'
 import type { EstadoConexao, PacoteDeLeituras, Sessao } from '../../shared/types'
 
 type SessaoCreatedCallback = (sessao: Sessao) => void
@@ -40,12 +42,14 @@ export class CollectionService {
   inicializar(): void {
     const parametros = buscarParametrosAtivos()
 
-    this.client.onEngineStarted(() => {
-      this.iniciarSessao()
+    this.client.onEngineStarted((perfil) => {
+      this.iniciarSessao(perfil)
     })
 
+    // Parâmetros N/A da sessão não geram leitura nem entram no pacote (RN-007).
     this.client.onParameterReading(({ parametroId, valor, timestamp }) => {
       if (this.sessaoAtiva === null) return
+      if (this.naoAplicavel(parametroId)) return
       inserirLeitura({
         sessaoId: this.sessaoAtiva.id,
         parametroId,
@@ -56,7 +60,11 @@ export class CollectionService {
 
     this.client.onParameterBatch(({ timestamp, leituras }) => {
       if (this.sessaoAtiva === null) return
-      const pacote: PacoteDeLeituras = { sessaoId: this.sessaoAtiva.id, timestamp, leituras }
+      const pacote: PacoteDeLeituras = {
+        sessaoId: this.sessaoAtiva.id,
+        timestamp,
+        leituras: leituras.filter((leitura) => !this.naoAplicavel(leitura.parametroId)),
+      }
       this.leiturasCallbacks.forEach((cb) => cb(pacote))
     })
 
@@ -66,7 +74,8 @@ export class CollectionService {
 
     this.client.connect(parametros)
 
-    // CA-001-2: se já existe sessão ativa no banco (reinício da app), mantém referência
+    // CA-001-2: se já existe sessão ativa no banco (reinício da app), mantém referência,
+    // com a lista de parâmetros N/A gravada na criação dela.
     const sessaoExistente = buscarSessaoAtiva()
     if (sessaoExistente !== null) {
       this.sessaoAtiva = sessaoExistente
@@ -77,7 +86,13 @@ export class CollectionService {
     this.client.close()
   }
 
-  private iniciarSessao(): void {
+  private naoAplicavel(parametroId: string): boolean {
+    if (this.sessaoAtiva === null) return false
+    return (this.sessaoAtiva.parametrosNaoAplicaveis as readonly string[]).includes(parametroId)
+  }
+
+  /** Cria a sessão com a lista de N/A decidida pelo perfil da aeronave, válida a sessão toda. */
+  private iniciarSessao(perfil: PerfilDaAeronave): void {
     if (this.sessaoAtiva !== null) return
 
     const novaSessao = criarSessao({
@@ -87,6 +102,7 @@ export class CollectionService {
       aerodromoOrigem: null,
       aerodromoDestino: null,
       status: 'ativa',
+      parametrosNaoAplicaveis: derivarParametrosNaoAplicaveis(perfil),
     })
 
     this.sessaoAtiva = novaSessao

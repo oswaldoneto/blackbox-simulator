@@ -10,6 +10,7 @@ const sessaoAtiva: Sessao = {
   aerodromoOrigem: null,
   aerodromoDestino: null,
   status: 'ativa',
+  parametrosNaoAplicaveis: [],
 }
 
 const sessaoEncerrada: Sessao = {

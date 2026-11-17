@@ -1,6 +1,8 @@
 import { v4 as uuidv4 } from 'uuid'
 import { getDatabase } from './database'
 import type { Sessao } from '../../shared/types'
+import { isParametroId } from '../../shared/parameter-ids'
+import type { ParametroId } from '../../shared/parameter-ids'
 
 interface SessaoRow {
   id: string
@@ -10,6 +12,40 @@ interface SessaoRow {
   aerodromo_origem: string | null
   aerodromo_destino: string | null
   status: string
+  parametros_nao_aplicaveis: string
+}
+
+/** Lê a lista JSON de parâmetros N/A; conteúdo inválido vira lista vazia, com log. */
+function lerParametrosNaoAplicaveis(sessaoId: string, json: string): ParametroId[] {
+  let lista: unknown
+  try {
+    lista = JSON.parse(json)
+  } catch (err) {
+    console.error(
+      `[SessionRepository] parametros_nao_aplicaveis inválido na sessão ${sessaoId}:`,
+      err
+    )
+    return []
+  }
+  if (!Array.isArray(lista)) {
+    console.error(
+      `[SessionRepository] parametros_nao_aplicaveis não é uma lista na sessão ${sessaoId}:`,
+      json
+    )
+    return []
+  }
+  const validos: ParametroId[] = []
+  for (const item of lista) {
+    if (typeof item === 'string' && isParametroId(item)) {
+      validos.push(item)
+    } else {
+      console.error(
+        `[SessionRepository] Parâmetro N/A desconhecido ignorado na sessão ${sessaoId}:`,
+        item
+      )
+    }
+  }
+  return validos
 }
 
 function rowToSessao(row: SessaoRow): Sessao {
@@ -21,6 +57,7 @@ function rowToSessao(row: SessaoRow): Sessao {
     aerodromoOrigem: row.aerodromo_origem,
     aerodromoDestino: row.aerodromo_destino,
     status: row.status as Sessao['status'],
+    parametrosNaoAplicaveis: lerParametrosNaoAplicaveis(row.id, row.parametros_nao_aplicaveis),
   }
 }
 
@@ -30,9 +67,11 @@ export function criarSessao(dados: Omit<Sessao, 'id'>): Sessao {
 
   db.prepare(
     `INSERT INTO sessoes
-       (id, iniciada_em, encerrada_em, aeronave, aerodromo_origem, aerodromo_destino, status)
+       (id, iniciada_em, encerrada_em, aeronave, aerodromo_origem, aerodromo_destino, status,
+        parametros_nao_aplicaveis)
      VALUES
-       (@id, @iniciadaEm, @encerradaEm, @aeronave, @aerodromoOrigem, @aerodromoDestino, @status)`
+       (@id, @iniciadaEm, @encerradaEm, @aeronave, @aerodromoOrigem, @aerodromoDestino, @status,
+        @parametrosNaoAplicaveis)`
   ).run({
     id,
     iniciadaEm: dados.iniciadaEm,
@@ -41,6 +80,7 @@ export function criarSessao(dados: Omit<Sessao, 'id'>): Sessao {
     aerodromoOrigem: dados.aerodromoOrigem,
     aerodromoDestino: dados.aerodromoDestino,
     status: dados.status,
+    parametrosNaoAplicaveis: JSON.stringify(dados.parametrosNaoAplicaveis),
   })
 
   return { id, ...dados }

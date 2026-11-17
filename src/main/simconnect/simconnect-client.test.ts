@@ -452,4 +452,193 @@ describe('SimConnectClient', () => {
       client.close()
     })
   })
+
+  // --- UC-006: posição, motor 1 e flapes ---
+
+  describe('UC-006', () => {
+    const DOZE_PARAMETROS: ParametroDeVoo[] = [
+      ...SEIS_PARAMETROS,
+      { id: 'latitude', nome: 'Latitude', unidade: '°', ativo: true },
+      { id: 'longitude', nome: 'Longitude', unidade: '°', ativo: true },
+      { id: 'throttle_1', nome: 'Manete', unidade: '%', ativo: true },
+      { id: 'mixture_1', nome: 'Mistura', unidade: '%', ativo: true },
+      { id: 'rpm_1', nome: 'RPM', unidade: 'rpm', ativo: true },
+      { id: 'flaps', nome: 'Flapes', unidade: '%', ativo: true },
+    ]
+
+    /** Buffer do pacote do motor: combustão, ENGINE TYPE e FLAPS AVAILABLE, nessa ordem. */
+    function bufferMotor(combustao: number, engineType: number, flapsAvailable: number) {
+      const valores = [combustao, engineType, flapsAvailable]
+      let i = 0
+      return { readInt32: () => valores[i++], readFloat64: () => 0 }
+    }
+
+    function definicoes(defId: number): { simVar: string; unit: string | null; tipo: number }[] {
+      return mockAddToDataDefinition.mock.calls
+        .filter((c) => c[0] === defId)
+        .map((c) => ({ simVar: c[1] as string, unit: c[2] as string | null, tipo: c[3] as number }))
+    }
+
+    it('deve registrar as 12 SimVars, uma FLOAT64 por parâmetro ativo, na ordem dos parâmetros', async () => {
+      const client = new SimConnectClient()
+      client.connect(DOZE_PARAMETROS)
+      await vi.waitFor(() => expect(mockRequestDataOnSimObject).toHaveBeenCalled())
+
+      const params = definicoes(1)
+      expect(params.map((d) => d.simVar)).toEqual([
+        'INDICATED ALTITUDE',
+        'AIRSPEED INDICATED',
+        'VERTICAL SPEED',
+        'PLANE HEADING DEGREES MAGNETIC',
+        'PLANE PITCH DEGREES',
+        'PLANE BANK DEGREES',
+        'PLANE LATITUDE',
+        'PLANE LONGITUDE',
+        'GENERAL ENG THROTTLE LEVER POSITION:1',
+        'GENERAL ENG MIXTURE LEVER POSITION:1',
+        'GENERAL ENG RPM:1',
+        'TRAILING EDGE FLAPS LEFT PERCENT',
+      ])
+      params.forEach((d) => expect(d.tipo).toBe(8))
+      client.close()
+    })
+
+    it('deve usar as unidades graus, percent e rpm nas SimVars novas', async () => {
+      const client = new SimConnectClient()
+      client.connect(DOZE_PARAMETROS)
+      await vi.waitFor(() => expect(mockRequestDataOnSimObject).toHaveBeenCalled())
+
+      const porSimVar = Object.fromEntries(definicoes(1).map((d) => [d.simVar, d.unit]))
+      expect(porSimVar['PLANE LATITUDE']).toBe('degrees')
+      expect(porSimVar['PLANE LONGITUDE']).toBe('degrees')
+      expect(porSimVar['GENERAL ENG THROTTLE LEVER POSITION:1']).toBe('percent')
+      expect(porSimVar['GENERAL ENG MIXTURE LEVER POSITION:1']).toBe('percent')
+      expect(porSimVar['GENERAL ENG RPM:1']).toBe('rpm')
+      expect(porSimVar['TRAILING EDGE FLAPS LEFT PERCENT']).toBe('percent')
+      client.close()
+    })
+
+    it('deve ler manete, mistura e RPM do motor 1 (sufixo :1) (CA-006-3)', async () => {
+      const client = new SimConnectClient()
+      client.connect(DOZE_PARAMETROS)
+      await vi.waitFor(() => expect(mockRequestDataOnSimObject).toHaveBeenCalled())
+
+      const motor = definicoes(1)
+        .map((d) => d.simVar)
+        .filter((v) => v.startsWith('GENERAL ENG'))
+      expect(motor).toHaveLength(3)
+      motor.forEach((v) => expect(v.endsWith(':1')).toBe(true))
+      client.close()
+    })
+
+    it('deve incluir ENGINE TYPE e FLAPS AVAILABLE na definição do motor, depois da combustão', async () => {
+      const client = new SimConnectClient()
+      client.connect(DOZE_PARAMETROS)
+      await vi.waitFor(() => expect(mockRequestDataOnSimObject).toHaveBeenCalled())
+
+      const motor = definicoes(0)
+      expect(motor.map((d) => d.simVar)).toEqual([
+        'ENG COMBUSTION:1',
+        'ENGINE TYPE',
+        'FLAPS AVAILABLE',
+      ])
+      motor.forEach((d) => expect(d.tipo).toBe(0))
+      client.close()
+    })
+
+    it('deve entregar lote com os 12 valores brutos, na ordem dos parâmetros (CA-006-1)', async () => {
+      const batchSpy = vi.fn()
+      const client = new SimConnectClient()
+      client.onParameterBatch(batchSpy)
+      client.connect(DOZE_PARAMETROS)
+      await vi.waitFor(() => expect(mockHandleOn).toHaveBeenCalled())
+
+      const valores = [4500, 112, 650, 5, -2, 3, -23.5505199, -46.6333094, 85, 100, 2450, 30]
+      const handler = getHandleListener('simObjectData') as SimObjectDataHandler
+      handler({ requestID: 1, data: fakeBuffer(valores) })
+
+      const lote = batchSpy.mock.calls[0][0] as { leituras: { parametroId: string; valor: number }[] }
+      expect(lote.leituras).toEqual(
+        DOZE_PARAMETROS.map((p, i) => ({ parametroId: p.id, valor: valores[i] }))
+      )
+      client.close()
+    })
+
+    it.each<[string, number, number, { motorAPistao: boolean; temFlapes: boolean }]>([
+      ['pistão com flapes', 0, 1, { motorAPistao: true, temFlapes: true }],
+      ['pistão sem flapes', 0, 0, { motorAPistao: true, temFlapes: false }],
+      ['jato com flapes', 1, 1, { motorAPistao: false, temFlapes: true }],
+      ['turboélice sem flapes', 5, 0, { motorAPistao: false, temFlapes: false }],
+    ])(
+      'deve entregar o perfil da aeronave (%s) ao avisar motor ligado',
+      async (_nome, engineType, flapsAvailable, perfil) => {
+        const spy = vi.fn()
+        const client = new SimConnectClient()
+        client.onEngineStarted(spy)
+        client.connect([makeParametro()])
+        await vi.waitFor(() => expect(mockHandleOn).toHaveBeenCalled())
+
+        const handler = getHandleListener('simObjectData') as SimObjectDataHandler
+        handler({ requestID: 0, data: bufferMotor(1, engineType, flapsAvailable) })
+
+        expect(spy).toHaveBeenCalledOnce()
+        expect(spy).toHaveBeenCalledWith(perfil)
+        client.close()
+      }
+    )
+
+    it('não deve avisar motor ligado com combustão 0, mesmo lendo o perfil', async () => {
+      const spy = vi.fn()
+      const client = new SimConnectClient()
+      client.onEngineStarted(spy)
+      client.connect([makeParametro()])
+      await vi.waitFor(() => expect(mockHandleOn).toHaveBeenCalled())
+
+      const handler = getHandleListener('simObjectData') as SimObjectDataHandler
+      handler({ requestID: 0, data: bufferMotor(0, 0, 1) })
+
+      expect(spy).not.toHaveBeenCalled()
+      client.close()
+    })
+
+    it('deve registrar listener de exception que só loga, sem mudar o estado da conexão', async () => {
+      const erro = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const spy = vi.fn()
+      const client = new SimConnectClient()
+      client.onConnectionChange(spy)
+      client.connect([makeParametro()])
+      await vi.waitFor(() => expect(mockHandleOn).toHaveBeenCalled())
+
+      getHandleListener('exception')({
+        exception: 7,
+        exceptionName: 'NAME_UNRECOGNIZED',
+        sendId: 3,
+        index: 2,
+      })
+
+      expect(erro).toHaveBeenCalled()
+      expect(String(erro.mock.calls[0][0])).toContain('NAME_UNRECOGNIZED')
+      expect(client.getEstadoConexao()).toBe('conectado')
+      expect(spy.mock.calls).toEqual([['conectado']])
+      erro.mockRestore()
+      client.close()
+    })
+
+    it('não deve enviar eventos nem dados ao simulador com os 12 parâmetros (RN-006)', async () => {
+      const client = new SimConnectClient()
+      client.onParameterBatch(vi.fn())
+      client.onEngineStarted(vi.fn())
+      client.connect(DOZE_PARAMETROS)
+      await vi.waitFor(() => expect(mockHandleOn).toHaveBeenCalled())
+
+      const handler = getHandleListener('simObjectData') as SimObjectDataHandler
+      handler({ requestID: 0, data: bufferMotor(1, 0, 1) })
+      handler({ requestID: 1, data: fakeBuffer([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) })
+
+      expect(mockTransmitClientEvent).not.toHaveBeenCalled()
+      expect(mockSetDataOnSimObject).not.toHaveBeenCalled()
+      expect(mockMapClientEventToSimEvent).not.toHaveBeenCalled()
+      client.close()
+    })
+  })
 })

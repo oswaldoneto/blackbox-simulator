@@ -3,7 +3,7 @@
 > Propósito: Regras de negócio reutilizáveis entre casos de uso, cada uma com um identificador RN-NNN.
 > Atualizar quando: uma regra for criada, alterada ou deixar de valer.
 > Relacionados: [glossary.md](glossary.md)
-> Última atualização: 2026-11-17
+> Última atualização: 2026-11-17 · loop-003
 
 ## Regras
 
@@ -40,7 +40,7 @@ Aplica-se a: UC-002, UC-003
 RN-005
 Nome: Retenção indefinida de registros
 Descrição: Os dados de todas as sessões são armazenados indefinidamente. Não há exclusão automática de registros.
-Aplica-se a: UC-003, UC-004, UC-005
+Aplica-se a: UC-003, UC-004, UC-005, UC-006
 
 ---
 
@@ -53,7 +53,11 @@ Aplica-se a: UC-002, UC-006
 
 RN-007
 Nome: Parâmetro não aplicável
-Descrição: Se a aeronave em uso não possui o item de um parâmetro do conjunto (por exemplo, mistura em motor a turbina ou flapes), o painel exibe "N/A" para esse parâmetro e nenhuma leitura dele é gravada.
+Descrição: Se a aeronave em uso não possui o item de um parâmetro do conjunto, o painel exibe "N/A" para esse parâmetro e nenhuma leitura dele é gravada.
+- Critério de "não possui": mistura é N/A se o motor não é a pistão; flapes são N/A se a aeronave não tem flapes. Manete, RPM, latitude e longitude nunca são N/A. Um valor 0 válido (flapes recolhidos, RPM com motor parado) continua sendo 0, não N/A.
+- Momento: a decisão é tomada pelos dados da aeronave no início da sessão (ao ligar o motor) e vale a sessão toda, mesmo que a aeronave mude durante o voo.
+- Prioridade: N/A vence "Sem sinal" ("—"). Com o sinal perdido ou com a sessão encerrada, o parâmetro N/A continua "N/A".
+(Alterada em 2026-11-17, loop-003: critério, momento e prioridade explicitados.)
 Aplica-se a: UC-002, UC-006
 
 ---

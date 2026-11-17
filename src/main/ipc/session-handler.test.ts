@@ -29,6 +29,7 @@ function makeSessao(overrides: Partial<Sessao> = {}): Sessao {
     aerodromoOrigem: null,
     aerodromoDestino: null,
     status: 'ativa',
+    parametrosNaoAplicaveis: [],
     ...overrides,
   }
 }

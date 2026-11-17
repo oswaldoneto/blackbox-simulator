@@ -3,7 +3,7 @@
 > Propósito: O que cada loop ensinou, e onde a lição foi aplicada no contexto.
 > Atualizar quando: no final de cada loop.
 > Relacionados: [loop_report.md](loop_report.md)
-> Última atualização: 2026-11-16 · loop-002
+> Última atualização: 2026-11-17 · loop-003
 
 ## Lições
 
@@ -83,6 +83,34 @@ Loop: loop-002
 O que aconteceu: O loop-002 foi o primeiro a rodar no Claude Code, com agentes e skills espelhando a configuração do .bob.
 Lição: Com duas configurações de agentes para o mesmo processo, elas precisam ficar equivalentes: ao mudar um agente ou uma skill numa, espelhar na outra na mesma entrega.
 Onde foi aplicada: context/adlc/agent_development_lifecycle.md, seção "Ferramentas", e AGENTS.md (seção "Loop de desenvolvimento").
+
+LL-012
+Data: 2026-11-17
+Loop: loop-003
+O que aconteceu: O `tsconfig.main.json` compila os testes junto com o código do main. Na 2.1, a mudança de tipo em `Sessao` (campo `parametrosNaoAplicaveis`) quebrou o `npm run build` por causa dos testes antigos, e o build só voltou a passar na 2.2, quando o tester ajustou os testes. Os testes também vão para `dist/main`.
+Lição: Quando o build do código de produção depende dos testes, a 2.1 não consegue entregar um build verde sem editar testes, o que embaralha a fronteira entre implementar (2.1) e testar (2.2). Separar a compilação dos testes do build de produção devolve à 2.1 um critério de pronto próprio.
+Onde foi aplicada: débito técnico 5 em loop_reports/loop-003.md; a tratar num loop futuro.
+
+LL-013
+Data: 2026-11-17
+Loop: loop-003
+O que aconteceu: Além dos testes do migrator com mocks, a 2.2 criou `migrator-sqlite.test.ts`, que roda o SQL real das migrations com `node:sqlite` (banco novo, banco do loop-002 com dados, reexecução, falha desfeita). O app também foi aberto sobre o banco real do loop-002, e a migração registrou 001 e 002 em `schema_migrations` com 12 parâmetros ativos.
+Lição: Mudança de schema deve ser testada com SQL real e sobre um banco de verdade da versão anterior. Mocks confirmam a ordem das chamadas, mas não que o SQL roda nem que os dados existentes sobrevivem.
+Onde foi aplicada: loop-003, decisão 4 do HITL-1 (teste real com `node:sqlite`) e etapa 2.2; convenção a registrar em code_conventions.md (4.2).
+
+LL-014
+Data: 2026-11-17
+Loop: loop-003
+O que aconteceu: As decisões de produto do UC-006 foram tomadas antes do loop, via `/context-product`. Mesmo assim, a 1.1 levantou 9 pontos para decisão humana: critério de N/A, momento da decisão, prioridade sobre "—", formatos, motor 1, debriefing, sessões antigas e layout do painel.
+Lição: Decidir o produto antes do loop reduz as perguntas da 1.1, mas não basta descrever o que entra. O `/context-product` deve aprofundar critérios de estados especiais (como N/A), formatos de exibição e casos limite (zero, sessões antigas, troca de aeronave) para que a 1.1 chegue com menos lacunas.
+Onde foi aplicada: a aplicar no `/context-product` dos próximos itens.
+
+LL-015
+Data: 2026-11-17
+Loop: loop-003
+O que aconteceu: A revisão de usabilidade apontou que Manete, Mistura e RPM não indicam o motor lido. No HITL-3, o humano decidiu que o produto suporta, por enquanto, só aeronaves de um motor: os rótulos ficaram sem o motor e o CA-006-3 (motor 1 em multimotor) deixou de ser critério.
+Lição: Uma decisão de escopo pode resolver um achado de revisão com menos trabalho que uma mudança de interface. Ela também pode chegar no meio do loop; quando chega, precisa ser propagada ao produto (product.md, UC) e ao roteiro manual na fase Documentar. Perguntar o escopo (como "multimotor entra?") já na 1.1 evitaria a decisão tardia.
+Onde foi aplicada: loop-003, decisões do HITL-3; product.md e UC-006 na 4.1.
 
 ## Modelo de lição
 

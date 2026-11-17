@@ -7,21 +7,41 @@ import {
 } from 'node-simconnect'
 import type { ConnectionHandle } from 'node-simconnect'
 import type { EstadoConexao, LeituraDoPacote, ParametroDeVoo } from '../../shared/types'
+import { PARAMETER_IDS, isParametroId } from '../../shared/parameter-ids'
+import type { ParametroId } from '../../shared/parameter-ids'
+import type { PerfilDaAeronave } from './parametros-nao-aplicaveis'
 
 const APP_NAME = 'BlackboxSimulator'
 const RETRY_INTERVAL_MS = 5_000
 
 /** Mapping from parametroId slug to the SimConnect variable name and unit. */
-const SIMVAR_MAP: Record<string, { simVar: string; unit: string }> = {
-  altitude_msl: { simVar: 'INDICATED ALTITUDE', unit: 'feet' },
-  airspeed_ias: { simVar: 'AIRSPEED INDICATED', unit: 'knots' },
-  vertical_speed: { simVar: 'VERTICAL SPEED', unit: 'feet per minute' },
-  heading_magnetic: { simVar: 'PLANE HEADING DEGREES MAGNETIC', unit: 'degrees' },
-  pitch: { simVar: 'PLANE PITCH DEGREES', unit: 'degrees' },
-  bank: { simVar: 'PLANE BANK DEGREES', unit: 'degrees' },
+const SIMVAR_MAP: Record<ParametroId, { simVar: string; unit: string }> = {
+  [PARAMETER_IDS.ALTITUDE_MSL]: { simVar: 'INDICATED ALTITUDE', unit: 'feet' },
+  [PARAMETER_IDS.AIRSPEED_IAS]: { simVar: 'AIRSPEED INDICATED', unit: 'knots' },
+  [PARAMETER_IDS.VERTICAL_SPEED]: { simVar: 'VERTICAL SPEED', unit: 'feet per minute' },
+  [PARAMETER_IDS.HEADING_MAGNETIC]: { simVar: 'PLANE HEADING DEGREES MAGNETIC', unit: 'degrees' },
+  [PARAMETER_IDS.PITCH]: { simVar: 'PLANE PITCH DEGREES', unit: 'degrees' },
+  [PARAMETER_IDS.BANK]: { simVar: 'PLANE BANK DEGREES', unit: 'degrees' },
+  [PARAMETER_IDS.LATITUDE]: { simVar: 'PLANE LATITUDE', unit: 'degrees' },
+  [PARAMETER_IDS.LONGITUDE]: { simVar: 'PLANE LONGITUDE', unit: 'degrees' },
+  [PARAMETER_IDS.THROTTLE_1]: { simVar: 'GENERAL ENG THROTTLE LEVER POSITION:1', unit: 'percent' },
+  [PARAMETER_IDS.MIXTURE_1]: { simVar: 'GENERAL ENG MIXTURE LEVER POSITION:1', unit: 'percent' },
+  [PARAMETER_IDS.RPM_1]: { simVar: 'GENERAL ENG RPM:1', unit: 'rpm' },
+  [PARAMETER_IDS.FLAPS]: { simVar: 'TRAILING EDGE FLAPS LEFT PERCENT', unit: 'percent' },
 }
 
-/** Definition IDs: index 0 = ENG COMBUSTION, indices 1..N = parameter slugs */
+/** SimVar e unidade do parâmetro, ou `undefined` se o slug não é conhecido. */
+function simVarDoParametro(parametroId: string): { simVar: string; unit: string } | undefined {
+  return isParametroId(parametroId) ? SIMVAR_MAP[parametroId] : undefined
+}
+
+/** Valor de `ENGINE TYPE` para motor a pistão; qualquer outro conta como não pistão. */
+const ENGINE_TYPE_PISTAO = 0
+
+/**
+ * Definition IDs: DEF_ID_ENGINE = ENG COMBUSTION:1, ENGINE TYPE e FLAPS AVAILABLE
+ * (nessa ordem, todos INT32); DEF_ID_PARAMS = um FLOAT64 por parâmetro ativo.
+ */
 const DEF_ID_ENGINE = 0 as const
 const DEF_ID_PARAMS = 1 as const
 
@@ -40,7 +60,7 @@ export type ParameterBatchPayload = {
   leituras: LeituraDoPacote[]
 }
 
-type EngineStartedCallback = () => void
+type EngineStartedCallback = (perfil: PerfilDaAeronave) => void
 type ParameterReadingCallback = (payload: ParameterReadingPayload) => void
 type ParameterBatchCallback = (payload: ParameterBatchPayload) => void
 type ConnectionChangeCallback = (estado: EstadoConexao) => void
@@ -119,6 +139,14 @@ export class SimConnectClient {
           this.scheduleRetry()
         })
 
+        // Uma SimVar inválida na definição gera exception e pode deixar a definição sem dados.
+        handle.on('exception', (recvException) => {
+          console.error(
+            `[SimConnect] Exception ${recvException.exception} (${recvException.exceptionName}),` +
+              ` sendId ${recvException.sendId}, index ${recvException.index}`
+          )
+        })
+
         handle.on('close', () => {
           console.warn('[SimConnect] Connection closed.')
           this.handle = null
@@ -139,8 +167,14 @@ export class SimConnectClient {
         handle.on('simObjectData', (recvData) => {
           if (recvData.requestID === REQ_ID_ENGINE) {
             const combustion = recvData.data.readInt32() !== 0
+            const engineType = recvData.data.readInt32()
+            const flapsAvailable = recvData.data.readInt32()
             if (combustion && !this.lastEngineCombustion) {
-              this.engineStartedCallbacks.forEach((cb) => cb())
+              const perfil: PerfilDaAeronave = {
+                motorAPistao: engineType === ENGINE_TYPE_PISTAO,
+                temFlapes: flapsAvailable !== 0,
+              }
+              this.engineStartedCallbacks.forEach((cb) => cb(perfil))
             }
             this.lastEngineCombustion = combustion
           }
@@ -150,7 +184,7 @@ export class SimConnectClient {
             const activeParams = this.parametros.filter((p) => p.ativo)
             const leituras: LeituraDoPacote[] = []
             for (const param of activeParams) {
-              if (SIMVAR_MAP[param.id] !== undefined) {
+              if (simVarDoParametro(param.id) !== undefined) {
                 const valor = recvData.data.readFloat64()
                 leituras.push({ parametroId: param.id, valor })
                 this.parameterReadingCallbacks.forEach((cb) =>
@@ -177,18 +211,20 @@ export class SimConnectClient {
   }
 
   private registerDefinitions(handle: ConnectionHandle): void {
-    // Definition for engine combustion check
+    // Engine definition: combustion (start detection) and aircraft profile (N/A)
     handle.addToDataDefinition(
       DEF_ID_ENGINE,
       'ENG COMBUSTION:1',
       null,
       SimConnectDataType.INT32
     )
+    handle.addToDataDefinition(DEF_ID_ENGINE, 'ENGINE TYPE', 'Enum', SimConnectDataType.INT32)
+    handle.addToDataDefinition(DEF_ID_ENGINE, 'FLAPS AVAILABLE', 'Bool', SimConnectDataType.INT32)
 
     // Definition for flight parameters (one per active parametro, in order)
     const activeParams = this.parametros.filter((p) => p.ativo)
     for (const param of activeParams) {
-      const mapping = SIMVAR_MAP[param.id]
+      const mapping = simVarDoParametro(param.id)
       if (mapping !== undefined) {
         handle.addToDataDefinition(
           DEF_ID_PARAMS,

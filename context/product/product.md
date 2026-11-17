@@ -3,7 +3,7 @@
 > Propósito: Visão de alto nível do produto: o que é, que problema resolve e para quem.
 > Atualizar quando: mudar o problema, o público ou o escopo do produto.
 > Relacionados: [glossary.md](glossary.md)
-> Última atualização: 2026-11-17
+> Última atualização: 2026-11-17 · loop-003
 
 ## Visão
 
@@ -37,6 +37,7 @@ Transformar os dados brutos do simulador em informação acionável, permitindo 
 - Controle ou interferência no voo em andamento.
 - Integração com aeronaves reais ou sistemas de aviação certificados.
 - Suporte a hardware físico de simulação (painéis, yokes, pedais).
+- Aeronaves multimotor: por enquanto, o produto suporta só aeronaves de um motor (decisão do HITL-3 do loop-003).
 
 ## Métricas de sucesso
 
@@ -48,10 +49,13 @@ Transformar os dados brutos do simulador em informação acionável, permitindo 
 
 Conjunto inicial (loop-001, confirmado no HITL-1 do loop-002): Altitude MSL (ft), Velocidade IAS (kt), Velocidade vertical (fpm), Rumo magnético (°), Arfagem (°) e Rolagem (°).
 
-Ampliação (UC-006): Latitude (°), Longitude (°), Posição da manete (%), Mistura (%), RPM (rpm) e Flapes (% de extensão). Manete, mistura e RPM são do motor 1, mesmo em aeronaves multimotor.
+Ampliação (UC-006): Latitude (°), Longitude (°), Manete (%), Mistura (%), RPM (rpm) e Flapes (% de extensão). Manete, mistura e RPM são os do motor da aeronave (o produto suporta só aeronaves de um motor).
 
-Item que a aeronave não possui aparece como "N/A" (RN-007).
+Formatos de exibição:
+- Latitude e longitude: graus decimais com 5 casas e hemisfério em letra (N/S, L/O), por exemplo "23,55052 S" e "46,63331 O"; o "°" fica no rótulo da unidade. Valor exatamente 0 aparece "0,00000", sem letra (HITL-2 do loop-003). O banco grava com precisão total; o arredondamento é só na exibição.
+- Manete, mistura e flapes: % inteiro. Manete com reverso aparece como % negativo (ex.: "−20"). Flapes pela extensão física da superfície, de 0 a 100.
+- RPM: inteiro.
+
+Item que a aeronave não possui aparece como "N/A" (RN-007): mistura, se o motor não é a pistão; flapes, se a aeronave não tem flapes. Manete, RPM, latitude e longitude nunca são N/A.
 
 Os identificadores técnicos estão em [../engineering/domain_model.md](../engineering/domain_model.md).
-
-Em aberto: casas decimais de exibição da latitude e da longitude.

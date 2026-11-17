@@ -1,23 +1,33 @@
 import { useState, useEffect } from 'react'
 import { listActiveParametros } from '../ipc/parameter-ipc'
 import type { ParametroDeVoo } from '../../shared/types'
+import { PARAMETER_IDS, isParametroId } from '../../shared/parameter-ids'
+import type { ParametroId } from '../../shared/parameter-ids'
 
 /**
- * Ordem de exibição na grade 3x2 do painel de tempo real:
- * linha 1 com Altitude MSL, IAS e Velocidade vertical;
- * linha 2 com Rumo magnético, Arfagem e Rolagem.
+ * Ordem de exibição na grade do painel de tempo real, por grupos (4 por linha
+ * na largura cheia):
+ * linha 1 (voo) com Altitude MSL, Velocidade IAS, Velocidade vertical e Rumo magnético;
+ * linha 2 (atitude e posição) com Arfagem, Rolagem, Latitude e Longitude;
+ * linha 3 (motor e configuração) com Manete, Mistura, RPM e Flapes.
  */
-export const PARAMETER_DISPLAY_ORDER: readonly string[] = [
-  'altitude_msl',
-  'airspeed_ias',
-  'vertical_speed',
-  'heading_magnetic',
-  'pitch',
-  'bank',
+export const PARAMETER_DISPLAY_ORDER: readonly ParametroId[] = [
+  PARAMETER_IDS.ALTITUDE_MSL,
+  PARAMETER_IDS.AIRSPEED_IAS,
+  PARAMETER_IDS.VERTICAL_SPEED,
+  PARAMETER_IDS.HEADING_MAGNETIC,
+  PARAMETER_IDS.PITCH,
+  PARAMETER_IDS.BANK,
+  PARAMETER_IDS.LATITUDE,
+  PARAMETER_IDS.LONGITUDE,
+  PARAMETER_IDS.THROTTLE_1,
+  PARAMETER_IDS.MIXTURE_1,
+  PARAMETER_IDS.RPM_1,
+  PARAMETER_IDS.FLAPS,
 ]
 
 function posicaoDeExibicao(parametroId: string): number {
-  const indice = PARAMETER_DISPLAY_ORDER.indexOf(parametroId)
+  const indice = isParametroId(parametroId) ? PARAMETER_DISPLAY_ORDER.indexOf(parametroId) : -1
   return indice === -1 ? PARAMETER_DISPLAY_ORDER.length : indice
 }
 

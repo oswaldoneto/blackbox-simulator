@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   formatParameterValue,
   SEM_VALOR,
+  NAO_APLICAVEL,
   PITCH_POSITIVO_NARIZ_PARA_BAIXO,
   BANK_POSITIVO_PARA_ESQUERDA,
 } from './format-parameter-value'
@@ -131,6 +132,116 @@ describe('formatParameterValue', () => {
     it('não deve usar sinal "+" nem "−" na rolagem', () => {
       const texto = formatParameterValue('bank', rolagemParaDireita(-30))
       expect(texto).not.toMatch(/[+−-]/)
+    })
+  })
+
+  // --- UC-006 ---
+
+  describe('N/A', () => {
+    it('deve exportar o texto "N/A"', () => {
+      expect(NAO_APLICAVEL).toBe('N/A')
+    })
+  })
+
+  describe('sem valor válido nos parâmetros novos', () => {
+    it.each(['latitude', 'longitude', 'throttle_1', 'mixture_1', 'rpm_1', 'flaps'])(
+      'deve devolver "—" para null, NaN e Infinity em %s',
+      (id) => {
+        expect(formatParameterValue(id, null)).toBe(SEM_VALOR)
+        expect(formatParameterValue(id, Number.NaN)).toBe(SEM_VALOR)
+        expect(formatParameterValue(id, Number.POSITIVE_INFINITY)).toBe(SEM_VALOR)
+        expect(formatParameterValue(id, Number.NEGATIVE_INFINITY)).toBe(SEM_VALOR)
+      }
+    )
+  })
+
+  describe('Latitude', () => {
+    it('deve usar 5 casas pt-BR, valor absoluto e "S" no hemisfério sul', () => {
+      expect(formatParameterValue('latitude', -23.5505199)).toBe('23,55052 S')
+    })
+
+    it('deve usar "N" no hemisfério norte', () => {
+      expect(formatParameterValue('latitude', 40.7127753)).toBe('40,71278 N')
+    })
+
+    it('deve mostrar "0,00000" sem letra no equador e quando arredonda para zero', () => {
+      expect(formatParameterValue('latitude', 0)).toBe('0,00000')
+      expect(formatParameterValue('latitude', -0)).toBe('0,00000')
+      expect(formatParameterValue('latitude', -0.000001)).toBe('0,00000')
+      expect(formatParameterValue('latitude', 0.000004)).toBe('0,00000')
+    })
+
+    it('não deve usar sinal "+" nem "−"', () => {
+      expect(formatParameterValue('latitude', -45.1)).not.toMatch(/[+−-]/)
+    })
+  })
+
+  describe('Longitude', () => {
+    it('deve usar 5 casas pt-BR, valor absoluto e "O" a oeste', () => {
+      expect(formatParameterValue('longitude', -46.6333094)).toBe('46,63331 O')
+    })
+
+    it('deve usar "L" a leste', () => {
+      expect(formatParameterValue('longitude', 2.3522219)).toBe('2,35222 L')
+    })
+
+    it('deve manter os 3 dígitos inteiros de longitudes acima de 100', () => {
+      expect(formatParameterValue('longitude', -123.456784)).toBe('123,45678 O')
+    })
+
+    it('deve mostrar "0,00000" sem letra no meridiano de Greenwich', () => {
+      expect(formatParameterValue('longitude', 0)).toBe('0,00000')
+      expect(formatParameterValue('longitude', -0.000001)).toBe('0,00000')
+    })
+  })
+
+  describe('Manete', () => {
+    it('deve formatar inteiro', () => {
+      expect(formatParameterValue('throttle_1', 85.4)).toBe('85')
+      expect(formatParameterValue('throttle_1', 100)).toBe('100')
+    })
+
+    it('deve mostrar o reverso com "−" (U+2212)', () => {
+      expect(formatParameterValue('throttle_1', -20)).toBe(`${MENOS}20`)
+    })
+
+    it('deve mostrar "0" e não "−0"', () => {
+      expect(formatParameterValue('throttle_1', -0.3)).toBe('0')
+      expect(formatParameterValue('throttle_1', -0)).toBe('0')
+    })
+  })
+
+  describe('Mistura', () => {
+    it('deve formatar inteiro', () => {
+      expect(formatParameterValue('mixture_1', 99.6)).toBe('100')
+      expect(formatParameterValue('mixture_1', 0)).toBe('0')
+    })
+  })
+
+  describe('RPM', () => {
+    it('deve formatar inteiro com ponto de milhar', () => {
+      expect(formatParameterValue('rpm_1', 2450.4)).toBe('2.450')
+      expect(formatParameterValue('rpm_1', 850)).toBe('850')
+    })
+
+    it('deve mostrar 0 como "0" (motor parado é valor real)', () => {
+      expect(formatParameterValue('rpm_1', 0)).toBe('0')
+      expect(formatParameterValue('rpm_1', -0.2)).toBe('0')
+    })
+  })
+
+  describe('Flapes (CA-006-5)', () => {
+    it('deve formatar % inteiro', () => {
+      expect(formatParameterValue('flaps', 30.4)).toBe('30')
+      expect(formatParameterValue('flaps', 0)).toBe('0')
+      expect(formatParameterValue('flaps', 100)).toBe('100')
+    })
+
+    it('deve limitar a faixa a 0..100', () => {
+      expect(formatParameterValue('flaps', 100.4)).toBe('100')
+      expect(formatParameterValue('flaps', 130)).toBe('100')
+      expect(formatParameterValue('flaps', -5)).toBe('0')
+      expect(formatParameterValue('flaps', -0.3)).toBe('0')
     })
   })
 

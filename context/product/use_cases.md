@@ -3,7 +3,7 @@
 > Propósito: Funcionalidades a desenvolver, com os critérios de aceite que guiam os testes e definem quando está pronto.
 > Atualizar quando: um caso de uso for criado, mudar ou tiver os critérios de aceite revistos.
 > Relacionados: [business_rules.md](business_rules.md), [glossary.md](glossary.md), [../engineering/domain_model.md](../engineering/domain_model.md)
-> Última atualização: 2026-11-17
+> Última atualização: 2026-11-17 · loop-003
 
 ## Índice
 
@@ -14,7 +14,7 @@
 | UC-003 | Encerrar sessão de coleta | Em aberto |
 | UC-004 | Selecionar voo para debriefing | Em aberto |
 | UC-005 | Visualizar dados do debriefing | Em aberto |
-| UC-006 | Coletar posição, motor e flapes | Em aberto |
+| UC-006 | Coletar posição, motor e flapes | Em andamento |
 
 Status: "Em aberto" (não iniciado), "Em andamento" (loop aberto ou validação manual pendente), "Concluído" (loop encerrado).
 
@@ -48,12 +48,12 @@ Objetivo: Acompanhar os parâmetros de voo no painel de tempo real, na janela do
 Pré-condições: O Blackbox Simulator está em execução. O painel de tempo real exige uma sessão de coleta ativa (UC-001 foi concluído).
 Fluxo principal:
   1. Quando a sessão fica ativa, o sistema exibe sozinho o painel de tempo real na área principal da própria janela do app, sem ação do piloto e sem segunda janela.
-  2. O painel mostra o valor atual de cada parâmetro do conjunto de parâmetros (ver product.md).
+  2. O painel mostra o valor atual de cada um dos 12 parâmetros do conjunto de parâmetros (ver product.md).
   3. A cada 1 s, mesma cadência da coleta, o painel atualiza os valores com a leitura do simulador, enquanto a sessão está ativa.
 Fluxos alternativos:
   A. Sem sessão ativa: no lugar do painel, o sistema exibe a orientação "Inicie o simulador e ligue o motor para começar".
-  B. Sessão encerrada: o painel mantém os últimos valores congelados e exibe o aviso "Sessão encerrada". Só ocorre no uso real depois do UC-003. Se a sessão encerrar com a conexão caída, os valores congelados ficam como "—", porque não há valor confiável para manter (decisão do HITL-4 do loop-002).
-  C. Sem sinal durante a sessão (conexão com o simulador perdida, ou 2 s sem leitura nova com a conexão aberta): os valores viram "—" e o painel exibe o aviso "Sem sinal do simulador". Quando as leituras voltam, os valores voltam e o aviso some.
+  B. Sessão encerrada: o painel mantém os últimos valores congelados e exibe o aviso "Sessão encerrada". Só ocorre no uso real depois do UC-003. Se a sessão encerrar com a conexão caída, os valores congelados ficam como "—", porque não há valor confiável para manter (decisão do HITL-4 do loop-002). Parâmetros N/A continuam "N/A" (RN-007).
+  C. Sem sinal durante a sessão (conexão com o simulador perdida, ou 2 s sem leitura nova com a conexão aberta): os valores viram "—" e o painel exibe o aviso "Sem sinal do simulador". Quando as leituras voltam, os valores voltam e o aviso some. Parâmetros N/A continuam "N/A", porque N/A tem prioridade sobre "—" (RN-007).
 Fora do escopo deste caso de uso: maximizar e reduzir cards do painel (vira item do backlog).
 Regras aplicadas: RN-001, RN-002, RN-003, RN-004, RN-006, RN-007
 Critérios de aceite:
@@ -62,6 +62,7 @@ Critérios de aceite:
   - Dado que não há sessão ativa, quando o piloto olha a janela do app, então o sistema exibe a orientação "Inicie o simulador e ligue o motor para começar".
   - Dado que a sessão foi encerrada, quando o painel deixa de receber leituras, então os últimos valores ficam congelados e o painel exibe o aviso "Sessão encerrada".
   - Dado que uma sessão está ativa, quando a conexão com o simulador cai ou passam 2 s sem leitura nova, então os valores viram "—" e o painel exibe o aviso "Sem sinal do simulador"; quando as leituras voltam, os valores voltam a ser exibidos.
+  - Dado que um parâmetro é N/A na sessão (RN-007), quando o sinal é perdido ou a sessão é encerrada, então o card desse parâmetro continua mostrando "N/A", e não "—".
 
 ---
 
@@ -115,29 +116,32 @@ Regras aplicadas: RN-002, RN-005
 Critérios de aceite:
   - Dado que uma sessão foi selecionada, quando a tela de debriefing é aberta, então todos os parâmetros do conjunto de parâmetros registrados durante aquele voo são exibidos.
   - Dado que os dados estão sendo exibidos, quando o piloto navega pela linha do tempo, então os valores dos parâmetros correspondem ao momento selecionado.
+Em aberto (vindo do loop-003, UC-006): como o debriefing mostra um parâmetro que foi N/A na sessão (RN-007), diferenciando-o de perda de dados; como aparecem as sessões antigas (loops 001 e 002), gravadas sem os 6 parâmetros novos.
 
 ---
 
 UC-006
 Nome: Coletar posição, motor e flapes
 Ator: Piloto
-Objetivo: Ampliar o conjunto de parâmetros com a posição da aeronave, os controles do motor 1 e os flapes, para que sejam registrados e acompanhados durante o voo.
-Pré-condições: Uma sessão de coleta está ativa (UC-001).
+Objetivo: Ampliar o conjunto de parâmetros com a posição da aeronave, os controles do motor e os flapes, para que sejam registrados e acompanhados durante o voo.
+Pré-condições: Uma sessão de coleta está ativa (UC-001). A aeronave é de um motor (multimotor está fora do escopo; ver product.md).
 Fluxo principal:
-  1. Durante a sessão ativa, o sistema coleta latitude, longitude, posição da manete, mistura, RPM e flapes junto com os parâmetros já existentes, na mesma cadência de 1 s.
-  2. O sistema grava as leituras de cada parâmetro na sessão.
-  3. O painel de tempo real exibe os 12 parâmetros do conjunto.
+  1. Ao ligar o motor, junto com o início da sessão, o sistema decide pelos dados da aeronave quais parâmetros são N/A (RN-007). A decisão vale a sessão toda.
+  2. Durante a sessão ativa, o sistema coleta latitude, longitude, manete, mistura, RPM e flapes junto com os parâmetros já existentes, na mesma cadência de 1 s. Manete, mistura e RPM são os do motor da aeronave (o sistema lê o motor 1 do simulador).
+  3. O sistema grava as leituras de cada parâmetro aplicável na sessão.
+  4. O painel de tempo real exibe os 12 parâmetros do conjunto, nos formatos definidos em product.md.
 Fluxos alternativos:
-  A. Aeronave multimotor: manete, mistura e RPM são os do motor 1.
-  B. Aeronave sem um dos itens: o parâmetro aparece como "N/A" e nenhuma leitura dele é gravada (RN-007).
-Regras aplicadas: RN-001, RN-002, RN-006, RN-007
+  A. Aeronave sem um dos itens: o parâmetro aparece como "N/A" e nenhuma leitura dele é gravada (RN-007). Mistura é N/A se o motor não é a pistão; flapes são N/A se a aeronave não tem flapes. Manete, RPM, latitude e longitude nunca são N/A. Um 0 válido (flapes recolhidos, RPM com motor parado) continua 0.
+  B. Sinal perdido ou sessão encerrada: os parâmetros N/A continuam "N/A"; os demais seguem o UC-002 ("—" ou valores congelados).
+Regras aplicadas: RN-001, RN-002, RN-005, RN-006, RN-007
 Critérios de aceite:
-  - Dado que uma sessão está ativa, quando o simulador envia as leituras, então latitude, longitude, posição da manete, mistura, RPM e flapes são gravados a cada 1 s junto com os parâmetros já existentes.
-  - Dado que uma sessão está ativa, quando o painel de tempo real é exibido, então os 12 parâmetros do conjunto aparecem, cada um com o seu valor atual.
-  - Dado que a aeronave é multimotor, quando há sessão ativa, então manete, mistura e RPM exibidos e gravados são os do motor 1.
-  - Dado que a aeronave não possui um dos itens (por exemplo, mistura), quando há sessão ativa, então o card desse parâmetro mostra "N/A" e nenhuma leitura dele é gravada.
-  - Dado que os flapes estão em qualquer posição, quando o valor é exibido, então ele aparece em % de extensão, de 0 a 100.
-Em aberto: organização do painel com 12 cards (decisão de UX); casas decimais da latitude e da longitude.
+  - CA-006-1: Dado que uma sessão está ativa, quando o simulador envia as leituras, então latitude, longitude, manete, mistura, RPM e flapes são gravados a cada 1 s junto com os parâmetros já existentes.
+  - CA-006-2: Dado que uma sessão está ativa, quando o painel de tempo real é exibido, então os 12 parâmetros do conjunto aparecem, cada um com o seu valor atual.
+  - CA-006-4: Dado que a aeronave não possui um dos itens (motor que não é a pistão, para a mistura; aeronave sem flapes, para os flapes), quando a sessão inicia, então o card desse parâmetro mostra "N/A" a sessão toda, inclusive com sinal perdido ou sessão encerrada, e nenhuma leitura dele é gravada.
+  - CA-006-5: Dado que os flapes estão em qualquer posição, quando o valor é exibido, então ele aparece em % de extensão física, inteiro, de 0 a 100; flapes recolhidos aparecem como 0, não como "N/A".
+  - CA-006-6: Dado que uma sessão está ativa, quando latitude e longitude são exibidas, então aparecem em graus decimais com 5 casas e hemisfério em letra (ex.: "23,55052 S", "46,63331 O"), e o banco guarda o valor com precisão total.
+  - CA-006-7: Dado que uma sessão está ativa, quando manete, mistura e RPM são exibidos, então aparecem como inteiros (manete e mistura em %, manete com reverso em % negativo; RPM com separador de milhar).
+(CA-006-3, de aeronave multimotor, deixou de ser critério no HITL-3 do loop-003: multimotor está fora do escopo.)
 
 ---
 

@@ -100,6 +100,7 @@ function makeSessao(overrides: Partial<Sessao> = {}): Sessao {
     aerodromoOrigem: null,
     aerodromoDestino: null,
     status: 'ativa',
+    parametrosNaoAplicaveis: [],
     ...overrides,
   }
 }
@@ -552,6 +553,167 @@ describe('App', () => {
       unmount()
 
       expect(fake.totalListeners()).toBe(0)
+    })
+  })
+
+  // ---------- UC-006: 12 parâmetros e N/A ----------
+
+  describe('UC-006: posição, motor e flapes', () => {
+    /** Catálogo dos 12 parâmetros fora da ordem de exibição, mais um inativo. */
+    const CATALOGO_DOZE: ParametroDeVoo[] = [
+      { id: 'flaps', nome: 'Flapes', unidade: '%', ativo: true },
+      { id: 'longitude', nome: 'Longitude', unidade: '°', ativo: true },
+      ...CATALOGO,
+      { id: 'rpm_1', nome: 'RPM', unidade: 'rpm', ativo: true },
+      { id: 'throttle_1', nome: 'Manete', unidade: '%', ativo: true },
+      { id: 'latitude', nome: 'Latitude', unidade: '°', ativo: true },
+      { id: 'mixture_1', nome: 'Mistura', unidade: '%', ativo: true },
+    ]
+
+    const ORDEM_DOZE = [
+      'Altitude MSL',
+      'Velocidade IAS',
+      'Velocidade vertical',
+      'Rumo magnético',
+      'Arfagem',
+      'Rolagem',
+      'Latitude',
+      'Longitude',
+      'Manete',
+      'Mistura',
+      'RPM',
+      'Flapes',
+    ]
+
+    /** Pacote do main: sem as leituras dos parâmetros N/A (o main não as envia). */
+    function pacoteDoze(sessaoId: string, semIds: string[] = []): PacoteDeLeituras {
+      const base = pacote(sessaoId, 4500)
+      return {
+        ...base,
+        leituras: [
+          ...base.leituras,
+          { parametroId: 'latitude', valor: -23.5505199 },
+          { parametroId: 'longitude', valor: -46.6333094 },
+          { parametroId: 'throttle_1', valor: 85 },
+          { parametroId: 'mixture_1', valor: 100 },
+          { parametroId: 'rpm_1', valor: 2450 },
+          { parametroId: 'flaps', valor: 30 },
+        ].filter((l) => !semIds.includes(l.parametroId)),
+      }
+    }
+
+    it('deve exibir os 12 cards na ordem dos grupos (CA-006-2)', async () => {
+      await renderApp(createFakeApi({ sessao: makeSessao(), parametros: CATALOGO_DOZE }))
+
+      expect(rotulosDoPainel()).toEqual(ORDEM_DOZE)
+    })
+
+    it('deve exibir o valor atual dos 6 parâmetros novos ao chegar o pacote', async () => {
+      const fake = createFakeApi({ sessao: makeSessao(), parametros: CATALOGO_DOZE })
+      await renderApp(fake)
+
+      fake.emitReadings(pacoteDoze('sess-1'))
+
+      expect(within(grupoDe('Latitude')).getByText('23,55052 S')).toBeInTheDocument()
+      expect(within(grupoDe('Longitude')).getByText('46,63331 O')).toBeInTheDocument()
+      expect(within(grupoDe('Manete')).getByText('85')).toBeInTheDocument()
+      expect(within(grupoDe('Mistura')).getByText('100')).toBeInTheDocument()
+      expect(within(grupoDe('RPM')).getByText('2.450')).toBeInTheDocument()
+      expect(within(grupoDe('Flapes')).getByText('30')).toBeInTheDocument()
+    })
+
+    it('deve exibir "N/A" nos parâmetros da lista da sessão, com a unidade (CA-006-4)', async () => {
+      const fake = createFakeApi({
+        sessao: makeSessao({ parametrosNaoAplicaveis: ['mixture_1', 'flaps'] }),
+        parametros: CATALOGO_DOZE,
+      })
+      await renderApp(fake)
+
+      fake.emitReadings(pacoteDoze('sess-1', ['mixture_1', 'flaps']))
+
+      const mistura = screen.getByRole('group', { name: 'Mistura: não aplicável' })
+      expect(within(mistura).getByText('N/A')).toBeInTheDocument()
+      expect(within(mistura).getByText('%')).toBeInTheDocument()
+      expect(screen.getByRole('group', { name: 'Flapes: não aplicável' })).toBeInTheDocument()
+      expect(within(grupoDe('RPM')).getByText('2.450')).toBeInTheDocument()
+    })
+
+    it('deve usar a lista da sessão recebida no evento de sessão iniciada', async () => {
+      const fake = createFakeApi({ sessao: null, parametros: CATALOGO_DOZE })
+      await renderApp(fake)
+
+      fake.emitSessionStarted(makeSessao({ parametrosNaoAplicaveis: ['mixture_1'] }))
+
+      expect(screen.getByRole('group', { name: 'Mistura: não aplicável' })).toBeInTheDocument()
+      expect(screen.getAllByText('N/A')).toHaveLength(1)
+    })
+
+    it('deve manter "N/A" quando a conexão cai (N/A vence "—")', async () => {
+      const fake = createFakeApi({
+        sessao: makeSessao({ parametrosNaoAplicaveis: ['flaps'] }),
+        parametros: CATALOGO_DOZE,
+      })
+      await renderApp(fake)
+      fake.emitReadings(pacoteDoze('sess-1', ['flaps']))
+
+      fake.emitConnection('desconectado')
+
+      expect(screen.getByRole('group', { name: 'Flapes: não aplicável' })).toBeInTheDocument()
+      expect(screen.getAllByText('—')).toHaveLength(11)
+    })
+
+    it('deve manter "N/A" após 2 s sem pacote com a conexão aberta', async () => {
+      vi.useFakeTimers()
+      const fake = createFakeApi({
+        sessao: makeSessao({ parametrosNaoAplicaveis: ['mixture_1'] }),
+        parametros: CATALOGO_DOZE,
+      })
+      await renderApp(fake)
+      fake.emitReadings(pacoteDoze('sess-1', ['mixture_1']))
+
+      act(() => {
+        vi.advanceTimersByTime(2500)
+      })
+
+      expect(avisoSemSinal()).toBeDefined()
+      expect(screen.getByRole('group', { name: 'Mistura: não aplicável' })).toBeInTheDocument()
+    })
+
+    it('deve manter "N/A" na sessão encerrada com a conexão caída', async () => {
+      const sessao = makeSessao({ parametrosNaoAplicaveis: ['mixture_1'] })
+      const fake = createFakeApi({ sessao, parametros: CATALOGO_DOZE })
+      await renderApp(fake)
+      fake.emitReadings(pacoteDoze('sess-1', ['mixture_1']))
+      fake.emitConnection('desconectado')
+
+      fake.emitSessionEnded(encerrar(sessao))
+
+      expect(avisoSessaoEncerrada()).not.toBeNull()
+      expect(screen.getByRole('group', { name: 'Mistura: não aplicável' })).toBeInTheDocument()
+    })
+
+    it('deve manter "N/A" e os valores congelados na sessão encerrada com a conexão aberta', async () => {
+      const sessao = makeSessao({ parametrosNaoAplicaveis: ['flaps'] })
+      const fake = createFakeApi({ sessao, parametros: CATALOGO_DOZE })
+      await renderApp(fake)
+      fake.emitReadings(pacoteDoze('sess-1', ['flaps']))
+
+      fake.emitSessionEnded(encerrar(sessao))
+
+      expect(screen.getByRole('group', { name: 'Flapes: não aplicável' })).toBeInTheDocument()
+      expect(within(grupoDe('RPM')).getByText('2.450')).toBeInTheDocument()
+    })
+
+    it('deve trocar a lista de N/A quando começa uma nova sessão com outra aeronave', async () => {
+      const sessao = makeSessao({ parametrosNaoAplicaveis: ['mixture_1'] })
+      const fake = createFakeApi({ sessao, parametros: CATALOGO_DOZE })
+      await renderApp(fake)
+      fake.emitSessionEnded(encerrar(sessao))
+
+      fake.emitSessionStarted(makeSessao({ id: 'sess-2', parametrosNaoAplicaveis: ['flaps'] }))
+
+      expect(screen.getByRole('group', { name: 'Flapes: não aplicável' })).toBeInTheDocument()
+      expect(screen.queryByRole('group', { name: 'Mistura: não aplicável' })).not.toBeInTheDocument()
     })
   })
 })

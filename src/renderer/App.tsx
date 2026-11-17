@@ -58,6 +58,7 @@ export function App(): React.ReactElement {
             valores={valores}
             estado={estadoPainel}
             erroParametros={erroParametros}
+            parametrosNaoAplicaveis={sessaoAtiva?.parametrosNaoAplicaveis ?? []}
           />
         )}
       </main>

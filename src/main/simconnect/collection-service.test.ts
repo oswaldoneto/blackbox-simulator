@@ -32,7 +32,7 @@ const {
 }))
 
 // Callbacks registrados pelo serviço no client, recapturados a cada teste em beforeEach.
-let capturedEngineStartedCallbacks: (() => void)[] = []
+let capturedEngineStartedCallbacks: ((perfil: PerfilDaAeronave) => void)[] = []
 let capturedParameterReadingCallbacks: ((p: ReadingPayload) => void)[] = []
 let capturedParameterBatchCallbacks: ((p: BatchPayload) => void)[] = []
 let capturedConnectionChangeCallbacks: ((estado: EstadoConexaoMock) => void)[] = []
@@ -64,6 +64,7 @@ vi.mock('../db/parameter-repository', () => ({
 
 import { CollectionService } from './collection-service'
 import type { Sessao, ParametroDeVoo } from '../../shared/types'
+import type { PerfilDaAeronave } from './parametros-nao-aplicaveis'
 
 // ---- helpers ----
 
@@ -76,8 +77,17 @@ function makeSessao(overrides: Partial<Sessao> = {}): Sessao {
     aerodromoOrigem: null,
     aerodromoDestino: null,
     status: 'ativa',
+    parametrosNaoAplicaveis: [],
     ...overrides,
   }
+}
+
+/** Aeronave com motor a pistão e flapes (ex.: Cessna 172): nada é N/A. */
+const PERFIL_PISTAO_COM_FLAPES: PerfilDaAeronave = { motorAPistao: true, temFlapes: true }
+
+/** Dispara o aviso de motor ligado com o perfil da aeronave. */
+function ligarMotor(perfil: PerfilDaAeronave = PERFIL_PISTAO_COM_FLAPES): void {
+  capturedEngineStartedCallbacks.forEach((cb) => cb(perfil))
 }
 
 function makeParametro(overrides: Partial<ParametroDeVoo> = {}): ParametroDeVoo {
@@ -99,7 +109,7 @@ describe('CollectionService', () => {
     capturedConnectionChangeCallbacks = []
 
     // Re-wire captured arrays after clearAllMocks resets the implementations
-    mockClientOnEngineStarted.mockImplementation((cb: () => void) => {
+    mockClientOnEngineStarted.mockImplementation((cb: (perfil: PerfilDaAeronave) => void) => {
       capturedEngineStartedCallbacks.push(cb)
     })
     mockClientOnParameterReading.mockImplementation((cb: (p: ReadingPayload) => void) => {
@@ -125,7 +135,7 @@ describe('CollectionService', () => {
     const service = new CollectionService()
     service.inicializar()
 
-    capturedEngineStartedCallbacks.forEach((cb) => cb())
+    ligarMotor()
 
     expect(mockCriarSessao).toHaveBeenCalledOnce()
     const args = mockCriarSessao.mock.calls[0][0] as Omit<Sessao, 'id'>
@@ -137,7 +147,7 @@ describe('CollectionService', () => {
     const service = new CollectionService()
     service.inicializar()
 
-    capturedEngineStartedCallbacks.forEach((cb) => cb())
+    ligarMotor()
 
     capturedParameterReadingCallbacks.forEach((cb) =>
       cb({ parametroId: 'altitude_msl', valor: 2000, timestamp: '2024-01-01T00:00:01.000Z' })
@@ -197,7 +207,7 @@ describe('CollectionService', () => {
     const service = new CollectionService()
     service.inicializar()
 
-    capturedEngineStartedCallbacks.forEach((cb) => cb())
+    ligarMotor()
 
     expect(mockCriarSessao).not.toHaveBeenCalled()
   })
@@ -210,7 +220,7 @@ describe('CollectionService', () => {
     service.onSessaoCriada(spy)
     service.inicializar()
 
-    capturedEngineStartedCallbacks.forEach((cb) => cb())
+    ligarMotor()
 
     expect(spy).toHaveBeenCalledOnce()
     expect(spy.mock.calls[0][0].status).toBe('ativa')
@@ -241,7 +251,7 @@ describe('CollectionService', () => {
       const spy = vi.fn()
       service.onLeituras(spy)
       service.inicializar()
-      capturedEngineStartedCallbacks.forEach((cb) => cb())
+      ligarMotor()
 
       capturedParameterBatchCallbacks.forEach((cb) => cb(lote))
 
@@ -283,7 +293,7 @@ describe('CollectionService', () => {
       const spy = vi.fn()
       service.onLeituras(spy)
       service.inicializar()
-      capturedEngineStartedCallbacks.forEach((cb) => cb())
+      ligarMotor()
 
       capturedParameterBatchCallbacks.forEach((cb) => cb(lote))
       capturedParameterBatchCallbacks.forEach((cb) => cb(lote))
@@ -309,6 +319,198 @@ describe('CollectionService', () => {
       mockClientGetEstadoConexao.mockReturnValue('conectado')
       const service = new CollectionService()
       expect(service.getEstadoConexao()).toBe('conectado')
+    })
+  })
+
+  // --- UC-006 / RN-007: parâmetros não aplicáveis (N/A) ---
+
+  describe('parâmetros não aplicáveis (RN-007)', () => {
+    const TS = '2024-01-01T00:00:01.000Z'
+
+    /** Lote com os 12 parâmetros do conjunto, como o client entrega após o UC-006. */
+    const LOTE_DOZE: BatchPayload = {
+      timestamp: TS,
+      leituras: [
+        { parametroId: 'altitude_msl', valor: 4500 },
+        { parametroId: 'airspeed_ias', valor: 112 },
+        { parametroId: 'vertical_speed', valor: 650 },
+        { parametroId: 'heading_magnetic', valor: 5 },
+        { parametroId: 'pitch', valor: -2 },
+        { parametroId: 'bank', valor: 3 },
+        { parametroId: 'latitude', valor: -23.5505199 },
+        { parametroId: 'longitude', valor: -46.6333094 },
+        { parametroId: 'throttle_1', valor: 85 },
+        { parametroId: 'mixture_1', valor: 100 },
+        { parametroId: 'rpm_1', valor: 2450 },
+        { parametroId: 'flaps', valor: 30 },
+      ],
+    }
+
+    function enviarLeiturasIndividuais(lote: BatchPayload): void {
+      for (const leitura of lote.leituras) {
+        capturedParameterReadingCallbacks.forEach((cb) =>
+          cb({ parametroId: leitura.parametroId, valor: leitura.valor, timestamp: lote.timestamp })
+        )
+      }
+    }
+
+    function idsGravados(): string[] {
+      return mockInserirLeitura.mock.calls.map(
+        (c) => (c[0] as { parametroId: string }).parametroId
+      )
+    }
+
+    it('deve gravar a lista vazia na sessão quando a aeronave é a pistão e tem flapes', () => {
+      const service = new CollectionService()
+      service.inicializar()
+
+      ligarMotor({ motorAPistao: true, temFlapes: true })
+
+      const args = mockCriarSessao.mock.calls[0][0] as Omit<Sessao, 'id'>
+      expect(args.parametrosNaoAplicaveis).toEqual([])
+    })
+
+    it('deve gravar mixture_1 e flaps na sessão quando o motor não é a pistão e não há flapes', () => {
+      const service = new CollectionService()
+      service.inicializar()
+
+      ligarMotor({ motorAPistao: false, temFlapes: false })
+
+      const args = mockCriarSessao.mock.calls[0][0] as Omit<Sessao, 'id'>
+      expect([...args.parametrosNaoAplicaveis].sort()).toEqual(['flaps', 'mixture_1'])
+    })
+
+    it('deve entregar a sessão criada com a lista de N/A a onSessaoCriada', () => {
+      const service = new CollectionService()
+      const spy = vi.fn()
+      service.onSessaoCriada(spy)
+      service.inicializar()
+
+      ligarMotor({ motorAPistao: false, temFlapes: true })
+
+      expect((spy.mock.calls[0][0] as Sessao).parametrosNaoAplicaveis).toEqual(['mixture_1'])
+    })
+
+    it('deve gravar a cada ciclo as leituras dos 12 parâmetros quando nada é N/A (CA-006-1)', () => {
+      const service = new CollectionService()
+      service.inicializar()
+      ligarMotor()
+
+      enviarLeiturasIndividuais(LOTE_DOZE)
+
+      expect(mockInserirLeitura).toHaveBeenCalledTimes(12)
+      expect(idsGravados()).toEqual(LOTE_DOZE.leituras.map((l) => l.parametroId))
+      mockInserirLeitura.mock.calls.forEach((c) => {
+        const leitura = c[0] as { sessaoId: string; timestamp: string }
+        expect(leitura.sessaoId).toBe('nova-sessao-1')
+        expect(leitura.timestamp).toBe(TS)
+      })
+    })
+
+    it('deve gravar latitude e longitude com precisão total, sem arredondar', () => {
+      const service = new CollectionService()
+      service.inicializar()
+      ligarMotor()
+
+      enviarLeiturasIndividuais(LOTE_DOZE)
+
+      const lat = mockInserirLeitura.mock.calls.find(
+        (c) => (c[0] as { parametroId: string }).parametroId === 'latitude'
+      )
+      expect((lat![0] as { valor: number }).valor).toBe(-23.5505199)
+    })
+
+    it('não deve chamar inserirLeitura para parâmetros N/A da sessão (CA-006-4)', () => {
+      const service = new CollectionService()
+      service.inicializar()
+      ligarMotor({ motorAPistao: false, temFlapes: false })
+
+      enviarLeiturasIndividuais(LOTE_DOZE)
+
+      expect(mockInserirLeitura).toHaveBeenCalledTimes(10)
+      expect(idsGravados()).not.toContain('mixture_1')
+      expect(idsGravados()).not.toContain('flaps')
+      // Manete, RPM, latitude e longitude nunca são N/A.
+      expect(idsGravados()).toEqual(
+        expect.arrayContaining(['throttle_1', 'rpm_1', 'latitude', 'longitude'])
+      )
+    })
+
+    it('não deve enviar no pacote os parâmetros N/A da sessão (CA-006-4)', () => {
+      const service = new CollectionService()
+      const spy = vi.fn()
+      service.onLeituras(spy)
+      service.inicializar()
+      ligarMotor({ motorAPistao: false, temFlapes: false })
+
+      capturedParameterBatchCallbacks.forEach((cb) => cb(LOTE_DOZE))
+
+      const pacote = spy.mock.calls[0][0] as { leituras: { parametroId: string }[] }
+      const ids = pacote.leituras.map((l) => l.parametroId)
+      expect(ids).toHaveLength(10)
+      expect(ids).not.toContain('mixture_1')
+      expect(ids).not.toContain('flaps')
+    })
+
+    it('deve gravar 0 válido de flapes e RPM quando eles não são N/A', () => {
+      const service = new CollectionService()
+      const spy = vi.fn()
+      service.onLeituras(spy)
+      service.inicializar()
+      ligarMotor({ motorAPistao: true, temFlapes: true })
+
+      const loteZero: BatchPayload = {
+        timestamp: TS,
+        leituras: [
+          { parametroId: 'flaps', valor: 0 },
+          { parametroId: 'rpm_1', valor: 0 },
+        ],
+      }
+      enviarLeiturasIndividuais(loteZero)
+      capturedParameterBatchCallbacks.forEach((cb) => cb(loteZero))
+
+      expect(mockInserirLeitura).toHaveBeenCalledTimes(2)
+      mockInserirLeitura.mock.calls.forEach((c) => expect((c[0] as { valor: number }).valor).toBe(0))
+      expect((spy.mock.calls[0][0] as { leituras: unknown[] }).leituras).toEqual(loteZero.leituras)
+    })
+
+    it('deve usar a lista persistida da sessão restaurada ao reiniciar com sessão ativa', () => {
+      mockBuscarSessaoAtiva.mockReturnValue(
+        makeSessao({ id: 'sessao-existente', parametrosNaoAplicaveis: ['flaps'] })
+      )
+      const service = new CollectionService()
+      const spy = vi.fn()
+      service.onLeituras(spy)
+      service.inicializar()
+
+      enviarLeiturasIndividuais(LOTE_DOZE)
+      capturedParameterBatchCallbacks.forEach((cb) => cb(LOTE_DOZE))
+
+      expect(idsGravados()).not.toContain('flaps')
+      expect(idsGravados()).toContain('mixture_1')
+      const ids = (spy.mock.calls[0][0] as { leituras: { parametroId: string }[] }).leituras.map(
+        (l) => l.parametroId
+      )
+      expect(ids).not.toContain('flaps')
+      expect(ids).toContain('mixture_1')
+    })
+
+    it('não deve mudar a lista quando chega outro perfil no meio da sessão (troca de aeronave)', () => {
+      const service = new CollectionService()
+      const spyLeituras = vi.fn()
+      service.onLeituras(spyLeituras)
+      service.inicializar()
+      ligarMotor({ motorAPistao: true, temFlapes: true })
+
+      // Novo aviso de motor ligado com perfil de jato, sem a sessão ter encerrado.
+      ligarMotor({ motorAPistao: false, temFlapes: false })
+      enviarLeiturasIndividuais(LOTE_DOZE)
+      capturedParameterBatchCallbacks.forEach((cb) => cb(LOTE_DOZE))
+
+      expect(mockCriarSessao).toHaveBeenCalledOnce()
+      expect(mockInserirLeitura).toHaveBeenCalledTimes(12)
+      expect(idsGravados()).toEqual(expect.arrayContaining(['mixture_1', 'flaps']))
+      expect((spyLeituras.mock.calls[0][0] as { leituras: unknown[] }).leituras).toHaveLength(12)
     })
   })
 })

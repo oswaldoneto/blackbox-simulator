@@ -3,7 +3,7 @@
 > Propósito: Diretrizes de design da interface gráfica.
 > Atualizar quando: mudar um padrão visual ou entrar um componente novo.
 > Relacionados: [usability.md](usability.md)
-> Última atualização: 2026-11-16 · loop-002
+> Última atualização: 2026-11-17 · loop-003
 
 ## Princípios visuais
 
@@ -55,10 +55,16 @@ Regra: estado de sessão ativa usa `color-success` + rótulo "Sessão ativa". Es
 - Usado em: painel de tempo real (UC-002).
 - Estrutura: card com fundo `color-surface`, borda `color-border`, raio 4px, padding 16px; rótulo do parâmetro no topo e, abaixo, valor e unidade alinhados pela linha de base.
 - Exibe: rótulo do parâmetro (tipografia Rótulo, `color-text-secondary`), valor atual (Valor de parâmetro, `color-text-primary`), unidade como rótulo à parte (Rótulo, `color-text-secondary`). O valor segue as regras de formatação de [usability.md](usability.md).
-- Estados: **normal** (valor em `color-text-primary`), **sem sinal** (valor substituído por "—" em `color-text-secondary`, para cumprir o contraste de 4,5:1; decisão do HITL-1 do loop-002, que substitui o antigo "texto desabilitado").
+- A linha de valor e unidade quebra (`flex-wrap: wrap`): quando o valor é longo (ex.: "123,45678 O" em card estreito), a unidade desce para a linha de baixo em vez de estourar o card (loop-003, confirmado no HITL-2).
+- Estados:
+  - **normal:** valor em `color-text-primary`.
+  - **sem sinal:** valor substituído por "—" em `color-text-secondary`, para cumprir o contraste de 4,5:1 (decisão do HITL-1 do loop-002, que substitui o antigo "texto desabilitado").
+  - **N/A (não aplicável):** a aeronave não possui o item (RN-007, UC-006). O valor é substituído por "N/A" no mesmo estilo do "—" (`color-text-secondary`); a unidade continua visível (decisão do HITL-1 do loop-003).
+- Precedência dos estados do card: N/A, depois "—", depois valor. O card N/A continua "N/A" com sinal perdido e com a sessão encerrada.
+- A lista de parâmetros N/A vem da sessão (decidida ao ligar o motor e válida a sessão toda); o card não decide sozinho.
 - Valores congelados (sessão encerrada) usam o mesmo estilo dos valores ao vivo; a diferença é dada pelo aviso do painel.
 - Maximização: prevista pelo princípio "Foco por demanda", mas fora do escopo do loop-002; virou item do backlog.
-- Implementado em: UC-002 (`parameter-indicator.tsx`).
+- Implementado em: UC-002 (`parameter-indicator.tsx`); estado N/A no UC-006.
 
 ### Painel de tempo real
 - Usado em: área principal da janela do app (UC-002). Não há segunda janela.
@@ -68,10 +74,10 @@ Regra: estado de sessão ativa usa `color-success` + rótulo "Sessão ativa". Es
   - **Sem sessão:** painel não é exibido; a área principal mostra "Inicie o simulador e ligue o motor para começar".
   - **Ativa:** grade com os valores ao vivo, atualizados a cada ciclo de 1 s.
   - **Encerrada:** últimos valores congelados e aviso "Sessão encerrada".
-  - **Sem sinal:** conexão com o simulador perdida durante a sessão ou 2 s sem dados novos; todos os valores viram "—" e aparece o aviso "Sem sinal do simulador". Os valores voltam quando os dados retornam.
+  - **Sem sinal:** conexão com o simulador perdida durante a sessão ou 2 s sem dados novos; os valores viram "—" (exceto os cards N/A, que continuam "N/A") e aparece o aviso "Sem sinal do simulador". Os valores voltam quando os dados retornam.
   - **Erro ao carregar parâmetros:** se a consulta dos parâmetros ativos falhar, a grade é substituída pelo aviso "Não foi possível carregar os parâmetros."
 - Enquanto a consulta inicial não responde, a área principal mostra "Aguardando..." em `color-text-secondary`.
-- Implementado em: UC-002 (`realtime-panel.tsx`, `realtime-panel.css`).
+- Implementado em: UC-002 (`realtime-panel.tsx`, `realtime-panel.css`); 12 parâmetros e estado N/A no UC-006.
 
 ### Aviso do painel
 - Usado em: painel de tempo real (UC-002), para "Sessão encerrada", "Sem sinal do simulador" e "Não foi possível carregar os parâmetros.".
@@ -119,9 +125,11 @@ Regra: estado de sessão ativa usa `color-success` + rótulo "Sessão ativa". Es
 
 ### Tela: painel de tempo real (UC-002)
 - Ocupa a área principal da janela do app.
-- Grade de 3 colunas e 2 linhas (3x2), com 16px de espaço entre cards, para os 6 parâmetros do conjunto inicial:
-  - Linha 1: Altitude MSL, Velocidade IAS, Velocidade vertical.
-  - Linha 2: Rumo magnético, Arfagem, Rolagem.
+- Grade de 4 colunas e 3 linhas (4x3), com 16px de espaço entre cards, para os 12 parâmetros, uma linha por grupo (loop-003, UC-006):
+  - Linha 1 (voo): Altitude MSL, Velocidade IAS, Velocidade vertical, Rumo magnético.
+  - Linha 2 (atitude e posição): Arfagem, Rolagem, Latitude, Longitude.
+  - Linha 3 (motor e configuração): Manete, Mistura, RPM, Flapes.
+- Os grupos não têm título nem separador visual; a divisão vem só da linha da grade (ver "Em aberto e débitos de UX").
 - Cada indicador ocupa um card.
 - Maximização de card (card ocupando a área de conteúdo, com botão "Reduzir" para voltar à grade): fora do escopo do loop-002; item do backlog.
 
@@ -135,9 +143,11 @@ Regra: estado de sessão ativa usa `color-success` + rótulo "Sessão ativa". Es
 - Qualquer gráfico pode ser maximizado para ocupar toda a área de conteúdo.
 
 ### Comportamento em janelas menores
-- A grade do painel de tempo real colapsa para uma coluna quando a largura for inferior a 600px, mantendo a ordem dos parâmetros.
+- A grade do painel de tempo real tem 4 colunas acima de 900px, 2 colunas entre 600px e 900px e 1 coluna abaixo de 600px, sempre na ordem dos grupos (decisão do HITL-1 do loop-003).
+- Com 12 cards, larguras de 900px ou menos podem exigir rolagem vertical para ver todos os parâmetros (consequência aceita da grade 4/2/1; ver "Em aberto e débitos de UX").
+- A 2 colunas, cada grupo ocupa duas linhas da grade e a divisão entre grupos deixa de ser visível.
 - A lista de voos e o debriefing mantêm layout de coluna única em qualquer largura.
-- As colunas da grade foram conferidas só por teste e inspeção; a conferência visual no Windows com o MSFS faz parte do roteiro manual do loop-002.
+- As colunas da grade foram conferidas só por teste e inspeção; a conferência visual das larguras no Windows com o MSFS faz parte do roteiro manual do loop-003.
 
 ## Em aberto e débitos de UX
 
@@ -147,3 +157,8 @@ Pontos levantados na revisão de usabilidade do loop-002 que ficaram como débit
 - **Valores congelados:** na sessão encerrada, os valores têm o mesmo estilo dos valores ao vivo; não está decidido se devem ter tratamento visual próprio.
 - **Notificação sobre o card:** a notificação do canto superior direito cobre o card desse canto por 4 s.
 - **Contraste da notificação `success`:** texto branco sobre `#24A148` dá cerca de 3,3:1, abaixo dos 4,5:1 de usability.md (vem do loop-001).
+
+Pontos da revisão de usabilidade do loop-003:
+
+- **Grupos sem título ou separador:** as três linhas da grade (voo, atitude e posição, motor e configuração) não têm título nem separador; a 2 colunas a divisão se perde. Decisão do HITL-3: débito de UX, para um loop de UX do painel junto com a maximização de card.
+- **Rolagem com 12 cards:** em 900px ou menos, a grade de 2 ou 1 coluna pode exigir rolagem, em tensão com o princípio "Leitura rápida primeiro" de [usability.md](usability.md). Aceita como consequência da grade 4/2/1.

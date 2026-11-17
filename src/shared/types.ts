@@ -1,3 +1,5 @@
+import type { ParametroId } from './parameter-ids'
+
 export interface Sessao {
   id: string
   iniciadaEm: string
@@ -6,6 +8,11 @@ export interface Sessao {
   aerodromoOrigem: string | null
   aerodromoDestino: string | null
   status: 'ativa' | 'encerrada'
+  /**
+   * Parâmetros que a aeronave da sessão não possui (RN-007): exibidos como "N/A"
+   * e sem leitura gravada. Decidido uma vez, na criação da sessão.
+   */
+  parametrosNaoAplicaveis: ParametroId[]
 }
 
 export interface ParametroDeVoo {

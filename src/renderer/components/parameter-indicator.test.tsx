@@ -44,4 +44,61 @@ describe('ParameterIndicator', () => {
     )
     expect(container.querySelector('[aria-live]')).toBeNull()
   })
+
+  // --- UC-006 / RN-007: N/A ---
+
+  describe('naoAplicavel', () => {
+    it('deve exibir "N/A" no lugar do valor e manter rótulo e unidade (CA-006-4)', () => {
+      render(
+        <ParameterIndicator
+          parametroId="mixture_1"
+          nome="Mistura"
+          unidade="%"
+          valor={100}
+          naoAplicavel
+        />
+      )
+      expect(screen.getByText('N/A')).toBeInTheDocument()
+      expect(screen.getByText('Mistura')).toBeInTheDocument()
+      expect(screen.getByText('%')).toBeInTheDocument()
+      expect(screen.queryByText('100')).not.toBeInTheDocument()
+    })
+
+    it('deve usar aria-label "<rótulo>: não aplicável"', () => {
+      render(
+        <ParameterIndicator parametroId="flaps" nome="Flapes" unidade="%" valor={0} naoAplicavel />
+      )
+      expect(screen.getByRole('group', { name: 'Flapes: não aplicável' })).toBeInTheDocument()
+    })
+
+    it('deve vencer o "—" quando o valor é null', () => {
+      render(
+        <ParameterIndicator parametroId="flaps" nome="Flapes" unidade="%" valor={null} naoAplicavel />
+      )
+      expect(screen.getByText('N/A')).toBeInTheDocument()
+      expect(screen.queryByText('—')).not.toBeInTheDocument()
+      expect(screen.queryByRole('group', { name: 'Flapes: sem sinal' })).not.toBeInTheDocument()
+    })
+
+    it('deve usar o mesmo estilo do "—" (classe de sem valor)', () => {
+      const { container } = render(
+        <ParameterIndicator parametroId="flaps" nome="Flapes" unidade="%" valor={10} naoAplicavel />
+      )
+      expect(container.querySelector('.parameter-indicator__value--no-signal')).not.toBeNull()
+    })
+
+    it('deve exibir o valor normalmente quando naoAplicavel é falso', () => {
+      render(
+        <ParameterIndicator
+          parametroId="flaps"
+          nome="Flapes"
+          unidade="%"
+          valor={0}
+          naoAplicavel={false}
+        />
+      )
+      expect(screen.getByRole('group', { name: 'Flapes: 0 %' })).toBeInTheDocument()
+      expect(screen.queryByText('N/A')).not.toBeInTheDocument()
+    })
+  })
 })

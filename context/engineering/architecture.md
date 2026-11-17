@@ -3,7 +3,7 @@
 > Propósito: Visão geral da arquitetura no modelo C4, diretrizes arquiteturais e registro das decisões.
 > Atualizar quando: uma decisão arquitetural for tomada ou revista.
 > Relacionados: [domain_model.md](domain_model.md), [code_conventions.md](code_conventions.md)
-> Última atualização: 2026-11-16 · loop-002
+> Última atualização: 2026-11-17 · loop-003
 
 ## Visão geral
 
@@ -54,6 +54,8 @@ C4Container
 - O main opera em modo passivo em relação ao simulador: somente leitura, nunca envia comandos (RN-006).
 - A coleta de parâmetros ocorre em intervalo fixo de 1 segundo via polling ao SimConnect.
 - O banco SQLite fica em `%APPDATA%\BlackboxSimulator\data.db` para garantir persistência entre atualizações do instalador. Esse caminho é resolvido por `app.getPath('appData')` mais a pasta fixa `BlackboxSimulator`, e por isso não depende do nome do app nem do instalador.
+- O produto suporta, por enquanto, só aeronaves de um motor (decisão do HITL-3 do loop-003). A coleta lê o motor 1 do simulador (sufixo `:1` nas SimVars de motor e `_1` nos slugs); multimotor está fora do escopo.
+- Os identificadores dos parâmetros (slugs) vêm de uma fonte única, `PARAMETER_IDS` em `src/shared/parameter-ids.ts`, usada pelo main e pelo renderer. Só os seeds das migrations SQL repetem os slugs, porque o SQL não importa a constante TypeScript.
 - O renderer não mantém estado de sessão próprio: a fonte da verdade sobre sessão, conexão e leituras é o main, consultado por invoke ou recebido por push. O renderer pode guardar estado de exibição temporário, derivado do que o main enviou, enquanto a tela estiver aberta: a sessão encerrada, os últimos valores congelados e o indicador `semDados` (ADR-007). Esse estado não é persistido nem enviado de volta ao main.
 
 ## Canais IPC
@@ -62,11 +64,11 @@ Todos definidos em `src/shared/ipc-channels.ts` e expostos pelo preload (ADR-005
 
 | Canal | Tipo | Direção | Carga | Desde |
 |-------|------|---------|-------|-------|
-| `session:get-active` | invoke | renderer → main | retorna `Sessao \| null` | loop-001 |
+| `session:get-active` | invoke | renderer → main | retorna `Sessao \| null` (desde o loop-003, `Sessao` carrega `parametrosNaoAplicaveis`, também em `session:started` e `session:ended`) | loop-001 |
 | `session:started` | push | main → renderer | `Sessao` | loop-001 |
 | `session:ended` | push | main → renderer | `Sessao` (a função emissora existe, mas nada a chama até o UC-003) | loop-001 |
 | `parameter:list-active` | invoke | renderer → main | retorna `ParametroDeVoo[]` com `ativo = true` (RN-002) | loop-002 |
-| `parameter:readings` | push | main → renderer | `PacoteDeLeituras`, um por ciclo de coleta (1 s), só com sessão ativa | loop-002 |
+| `parameter:readings` | push | main → renderer | `PacoteDeLeituras`, um por ciclo de coleta (1 s), só com sessão ativa, sem os parâmetros N/A da sessão | loop-002 |
 | `connection:get-state` | invoke | renderer → main | retorna `EstadoConexao` | loop-002 |
 | `connection:state-changed` | push | main → renderer | `EstadoConexao`, só nas transições | loop-002 |
 
@@ -102,7 +104,8 @@ ADR-004
 Status: aceita
 Contexto: O sistema precisa detectar o momento em que o motor da aeronave é ligado no simulador para criar uma nova sessão automaticamente.
 Decisão: Usar a variável SimConnect `ENG COMBUSTION:1` (INT32, bool) subscrita via `SimConnectPeriod.SECOND`. A detecção é feita pela transição `false → true` no campo `lastEngineCombustion`. Se o motor já estiver ligado ao iniciar o app, a primeira leitura dispara a sessão automaticamente.
-Consequências: Latência máxima de 1 segundo para detectar o início do motor. A variável `ENG COMBUSTION:1` é compatível com MSFS 2024; validação com aeronaves específicas pode ser necessária em versões futuras.
+Revisão (loop-003): a definição do motor (`DEF_ID_ENGINE`) passou a ter 3 campos: `ENG COMBUSTION:1`, `ENGINE TYPE` (`Enum`, INT32) e `FLAPS AVAILABLE` (`Bool`, INT32). O `onEngineStarted` entrega o perfil da aeronave (`PerfilDaAeronave`) lido nessa mesma leitura (ver ADR-008). O cliente registra um listener de `exception` do SimConnect, que loga a exceção.
+Consequências: Latência máxima de 1 segundo para detectar o início do motor. A variável `ENG COMBUSTION:1` é compatível com MSFS 2024; validação com aeronaves específicas pode ser necessária em versões futuras. Desde o loop-003, a detecção de motor ligado e o perfil da aeronave dividem a mesma definição: uma SimVar de perfil que o MSFS 2024 recuse pode deixar a definição sem dados e impedir o início automático da sessão (UC-001), o que só aparece no log. Esse risco é conferido no passo 10 do roteiro manual no Windows do loop-003.
 
 ---
 
@@ -131,13 +134,36 @@ Decisão:
 - O catálogo de parâmetros exibidos vem de `parameter:list-active` (filtro `ativo = 1` no main, RN-002).
 - Limite de 2 s sem dados no renderer: com sessão ativa, se passarem `SEM_DADOS_LIMITE_MS` (2000 ms) sem pacote novo, o painel marca `semDados` e troca os valores por "—"; volta ao receber pacote. Conexão perdida com sessão ativa também zera os valores. Sessão encerrada congela os últimos valores e ignora pacotes de outra sessão; nova sessão zera.
 - A precedência dos estados do painel fica em `derivePanelState({ sessao, conexao, semDados })`: sem sessão, encerrada, sem sinal, ativa.
-Consequências: Uma mensagem IPC por segundo com 6 números, sem custo relevante. O valor exibido é o lido do SimConnect, não o gravado, então uma falha de gravação não aparece no painel. O limite de 2 s mora no renderer e cobre o caso de conexão aberta sem dados (menu, sem aeronave). Valores congelados e `semDados` são estado de exibição temporário no renderer (ver Diretrizes). O atraso real e as colunas da grade ainda dependem do roteiro manual no Windows com MSFS.
+Revisão (loop-003): o conjunto passou de 6 para 12 parâmetros; os parâmetros N/A da sessão não entram no pacote (ADR-008), e o pacote leva até 12 números.
+Consequências: Uma mensagem IPC por segundo com até 12 números, sem custo relevante. O valor exibido é o lido do SimConnect, não o gravado, então uma falha de gravação não aparece no painel. O limite de 2 s mora no renderer e cobre o caso de conexão aberta sem dados (menu, sem aeronave). Valores congelados e `semDados` são estado de exibição temporário no renderer (ver Diretrizes). O atraso real e as colunas da grade ainda dependem do roteiro manual no Windows com MSFS.
+
+---
+
+ADR-008
+Status: aceita (loop-003)
+Contexto: O UC-006 amplia o conjunto para 12 parâmetros, e alguns não existem em toda aeronave: mistura em motor que não é a pistão, flapes em aeronave sem flapes. A RN-007 pede que esses parâmetros apareçam como "N/A" e não sejam gravados. Era preciso decidir quando o N/A é decidido, onde ele mora e como o renderer o conhece sem canal IPC novo.
+Decisão:
+- O N/A é decidido pelo perfil da aeronave (`PerfilDaAeronave = { motorAPistao, temFlapes }`), lido de `ENGINE TYPE` (0 = pistão; qualquer outro valor conta como não pistão) e `FLAPS AVAILABLE` (diferente de 0 = tem flapes) na mesma definição de `ENG COMBUSTION:1`, no momento em que o motor é ligado (ADR-004).
+- `derivarParametrosNaoAplicaveis` (`src/main/simconnect/parametros-nao-aplicaveis.ts`) converte o perfil na lista: `mixture_1` se não é pistão; `flaps` se não tem flapes. Manete, RPM, latitude, longitude e os parâmetros do conjunto inicial nunca são N/A; um 0 válido continua 0.
+- A lista é persistida na Sessão (`parametrosNaoAplicaveis`, coluna JSON `parametros_nao_aplicaveis`, padrão `'[]'`, criada pela migration 002) e vale a sessão toda: troca de aeronave sem desligar o motor não muda a lista, e uma sessão restaurada após reinício usa a lista gravada.
+- O `collection-service` filtra os parâmetros N/A nos dois caminhos: não grava LeituraDeParâmetro e não os envia no `PacoteDeLeituras`.
+- O renderer recebe a lista dentro da `Sessao` (canais de sessão já existentes; nenhum canal novo) e não decide N/A. No painel, a precedência por card é: N/A, depois "—", depois o valor. Com sinal perdido ou sessão encerrada, o card N/A continua "N/A".
+Consequências: O N/A sobrevive ao reinício do app e fica disponível para o debriefing (UC-005), que ainda não decide como mostrá-lo nem como tratar sessões anteriores à 002 (que ficam com `[]`). Como a decisão é tomada uma vez, uma aeronave trocada no meio da sessão mantém o N/A da aeronave inicial. Valores novos de `ENGINE TYPE` no MSFS 2024 deixam a mistura em N/A. O perfil divide a definição com a detecção de motor ligado (ver risco em ADR-004). A confirmar no Windows: `FLAPS AVAILABLE` = 0 em aeronave sem flapes e os valores de `ENGINE TYPE` no 2024.
 
 ---
 
 ## Em aberto
 
-- Identificadores dos parâmetros (slugs como `altitude_msl`) escritos à mão em três lugares, no main e no renderer (ordem de exibição e formatação), fora de `shared/`. Levantado na revisão do loop-002 (3.4); decisão humana pendente sobre centralizá-los em `shared/`.
+Levantado na revisão do loop-003 (3.2 e 3.4); aguarda decisão humana.
+
+- Funções puras em `shared/`: `src/shared/parameter-ids.ts` exporta `isParametroId`, mas a convenção de `shared/` fala só em tipos e constantes (code_conventions.md). Decidir se funções puras são aceitas em `shared/`.
+- Tipagem dos IDs: `ParametroDeVoo.id`, `LeituraDeParametro.parametroId`, `LeituraDoPacote.parametroId` e o painel ainda usam `string` (com `readonly string[]` no painel e na coleta). Decidir se passam a `ParametroId`.
+
+Débitos técnicos ligados à arquitetura (aceitos no loop-003):
+- Falha numa migration interrompe a inicialização e o app não abre; o erro aparece só no log (HITL-2: mostrar mensagem ao piloto num loop futuro).
+- SimVar de perfil inválida no MSFS 2024 pode impedir a detecção de motor ligado (ADR-004).
+
+Resolvido no loop-003: os slugs dos parâmetros, antes escritos à mão em vários lugares do main e do renderer, estão centralizados em `PARAMETER_IDS` (`src/shared/parameter-ids.ts`), por decisão do HITL-1. Só os seeds SQL das migrations repetem os slugs.
 
 ## Modelo de ADR
 

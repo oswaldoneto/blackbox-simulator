@@ -117,4 +117,117 @@ describe('RealtimePanel', () => {
     render(<RealtimePanel parametros={PARAMETROS} valores={VALORES} estado="ativa" />)
     expect(screen.getByRole('region', { name: 'Painel de tempo real' })).toBeInTheDocument()
   })
+
+  // --- UC-006: 12 parâmetros e N/A ---
+
+  describe('UC-006', () => {
+    const DOZE: ParametroDeVoo[] = [
+      ...PARAMETROS,
+      { id: 'latitude', nome: 'Latitude', unidade: '°', ativo: true },
+      { id: 'longitude', nome: 'Longitude', unidade: '°', ativo: true },
+      { id: 'throttle_1', nome: 'Manete', unidade: '%', ativo: true },
+      { id: 'mixture_1', nome: 'Mistura', unidade: '%', ativo: true },
+      { id: 'rpm_1', nome: 'RPM', unidade: 'rpm', ativo: true },
+      { id: 'flaps', nome: 'Flapes', unidade: '%', ativo: true },
+    ]
+
+    const VALORES_DOZE: Record<string, number> = {
+      ...VALORES,
+      latitude: -23.5505199,
+      longitude: -46.6333094,
+      throttle_1: 85,
+      mixture_1: 100,
+      rpm_1: 2450,
+      flaps: 30,
+    }
+
+    function rotulos(container: HTMLElement): (string | null | undefined)[] {
+      const grade = container.querySelector('.realtime-grid') as HTMLElement
+      return within(grade)
+        .getAllByRole('group')
+        .map((g) => g.querySelector('.parameter-indicator__label')?.textContent)
+    }
+
+    it('deve exibir os 12 cards com o valor atual de cada um (CA-006-2)', () => {
+      const { container } = render(
+        <RealtimePanel parametros={DOZE} valores={VALORES_DOZE} estado="ativa" />
+      )
+      expect(rotulos(container)).toEqual(DOZE.map((p) => p.nome))
+      expect(screen.getByRole('group', { name: 'Latitude: 23,55052 S °' })).toBeInTheDocument()
+      expect(screen.getByRole('group', { name: 'Longitude: 46,63331 O °' })).toBeInTheDocument()
+      expect(screen.getByRole('group', { name: 'Manete: 85 %' })).toBeInTheDocument()
+      expect(screen.getByRole('group', { name: 'Mistura: 100 %' })).toBeInTheDocument()
+      expect(screen.getByRole('group', { name: 'RPM: 2.450 rpm' })).toBeInTheDocument()
+      expect(screen.getByRole('group', { name: 'Flapes: 30 %' })).toBeInTheDocument()
+    })
+
+    it('deve colocar os 12 cards dentro de um único elemento com a classe realtime-grid', () => {
+      const { container } = render(
+        <RealtimePanel parametros={DOZE} valores={VALORES_DOZE} estado="ativa" />
+      )
+      const grades = container.querySelectorAll('.realtime-grid')
+      expect(grades).toHaveLength(1)
+      expect(grades[0].querySelectorAll('.parameter-indicator')).toHaveLength(12)
+    })
+
+    it('deve exibir "N/A" nos parâmetros da lista e o valor nos demais (CA-006-4)', () => {
+      render(
+        <RealtimePanel
+          parametros={DOZE}
+          valores={VALORES_DOZE}
+          estado="ativa"
+          parametrosNaoAplicaveis={['mixture_1', 'flaps']}
+        />
+      )
+      expect(screen.getAllByText('N/A')).toHaveLength(2)
+      expect(screen.getByRole('group', { name: 'Mistura: não aplicável' })).toBeInTheDocument()
+      expect(screen.getByRole('group', { name: 'Flapes: não aplicável' })).toBeInTheDocument()
+      expect(screen.getByRole('group', { name: 'Manete: 85 %' })).toBeInTheDocument()
+      expect(screen.getByRole('group', { name: 'RPM: 2.450 rpm' })).toBeInTheDocument()
+    })
+
+    it('deve manter "N/A" e não "—" quando sem sinal', () => {
+      render(
+        <RealtimePanel
+          parametros={DOZE}
+          valores={VALORES_DOZE}
+          estado="sem-sinal"
+          parametrosNaoAplicaveis={['mixture_1']}
+        />
+      )
+      expect(screen.getByRole('group', { name: 'Mistura: não aplicável' })).toBeInTheDocument()
+      expect(screen.getAllByText('N/A')).toHaveLength(1)
+      expect(screen.getAllByText('—')).toHaveLength(11)
+    })
+
+    it('deve manter "N/A" na sessão encerrada, inclusive sem valores congelados', () => {
+      render(
+        <RealtimePanel
+          parametros={DOZE}
+          valores={{}}
+          estado="encerrada"
+          parametrosNaoAplicaveis={['flaps']}
+        />
+      )
+      expect(screen.getByRole('group', { name: 'Flapes: não aplicável' })).toBeInTheDocument()
+      expect(screen.getAllByText('—')).toHaveLength(11)
+    })
+
+    it('deve exibir "N/A" mesmo antes de chegar qualquer leitura', () => {
+      render(
+        <RealtimePanel
+          parametros={DOZE}
+          valores={{}}
+          estado="ativa"
+          parametrosNaoAplicaveis={['mixture_1']}
+        />
+      )
+      expect(screen.getByRole('group', { name: 'Mistura: não aplicável' })).toBeInTheDocument()
+    })
+
+    it('não deve exibir "N/A" quando a lista está vazia ou ausente', () => {
+      render(<RealtimePanel parametros={DOZE} valores={VALORES_DOZE} estado="ativa" />)
+      expect(screen.queryByText('N/A')).not.toBeInTheDocument()
+    })
+  })
 })
