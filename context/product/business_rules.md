@@ -3,7 +3,7 @@
 > Propósito: Regras de negócio reutilizáveis entre casos de uso, cada uma com um identificador RN-NNN.
 > Atualizar quando: uma regra for criada, alterada ou deixar de valer.
 > Relacionados: [glossary.md](glossary.md)
-> Última atualização: 2026-11-16 · loop-002
+> Última atualização: 2026-11-17
 
 ## Regras
 
@@ -12,14 +12,14 @@
 RN-001
 Nome: Coleta local
 Descrição: A coleta de parâmetros exige que o simulador de voo esteja rodando na mesma máquina que o Blackbox Simulator. Conexão remota não é suportada.
-Aplica-se a: UC-001, UC-002
+Aplica-se a: UC-001, UC-002, UC-006
 
 ---
 
 RN-002
-Nome: Conjunto inicial de parâmetros
-Descrição: Apenas os parâmetros do conjunto inicial configurado são coletados e registrados. Parâmetros fora desse conjunto são ignorados.
-Aplica-se a: UC-001, UC-002, UC-005
+Nome: Conjunto de parâmetros
+Descrição: Apenas os parâmetros do conjunto configurado são coletados, registrados e exibidos. Parâmetros fora desse conjunto são ignorados. (Alterada em 2026-11-17: antes "Conjunto inicial de parâmetros"; ampliada pelo UC-006.)
+Aplica-se a: UC-001, UC-002, UC-005, UC-006
 
 ---
 
@@ -47,7 +47,14 @@ Aplica-se a: UC-003, UC-004, UC-005
 RN-006
 Nome: Não interferência no simulador
 Descrição: O Blackbox Simulator opera em modo passivo: coleta e exibe dados, mas não envia comandos nem altera o estado do simulador.
-Aplica-se a: UC-002
+Aplica-se a: UC-002, UC-006
+
+---
+
+RN-007
+Nome: Parâmetro não aplicável
+Descrição: Se a aeronave em uso não possui o item de um parâmetro do conjunto (por exemplo, mistura em motor a turbina ou flapes), o painel exibe "N/A" para esse parâmetro e nenhuma leitura dele é gravada.
+Aplica-se a: UC-002, UC-006
 
 ---
 

@@ -3,7 +3,7 @@
 > Propósito: Funcionalidades a desenvolver, com os critérios de aceite que guiam os testes e definem quando está pronto.
 > Atualizar quando: um caso de uso for criado, mudar ou tiver os critérios de aceite revistos.
 > Relacionados: [business_rules.md](business_rules.md), [glossary.md](glossary.md), [../engineering/domain_model.md](../engineering/domain_model.md)
-> Última atualização: 2026-11-16 · loop-002
+> Última atualização: 2026-11-17
 
 ## Índice
 
@@ -14,6 +14,7 @@
 | UC-003 | Encerrar sessão de coleta | Em aberto |
 | UC-004 | Selecionar voo para debriefing | Em aberto |
 | UC-005 | Visualizar dados do debriefing | Em aberto |
+| UC-006 | Coletar posição, motor e flapes | Em aberto |
 
 Status: "Em aberto" (não iniciado), "Em andamento" (loop aberto ou validação manual pendente), "Concluído" (loop encerrado).
 
@@ -29,12 +30,12 @@ Pré-condições: Blackbox Simulator está em execução na mesma máquina que o
 Fluxo principal:
   1. O piloto liga o motor da aeronave no simulador.
   2. O sistema detecta o evento de motor ligado.
-  3. O sistema cria uma nova sessão e inicia a coleta dos parâmetros do conjunto inicial.
+  3. O sistema cria uma nova sessão e inicia a coleta dos parâmetros do conjunto de parâmetros.
 Fluxos alternativos:
   A. Motor já estava ligado ao iniciar o Blackbox Simulator: o sistema cria a sessão e inicia a coleta a partir daquele momento.
 Regras aplicadas: RN-001, RN-002, RN-003
 Critérios de aceite:
-  - Dado que o Blackbox Simulator está em execução, quando o piloto liga o motor no simulador, então o sistema inicia uma nova sessão e começa a registrar os parâmetros do conjunto inicial.
+  - Dado que o Blackbox Simulator está em execução, quando o piloto liga o motor no simulador, então o sistema inicia uma nova sessão e começa a registrar os parâmetros do conjunto de parâmetros.
   - Dado que o motor já está ligado ao iniciar o Blackbox Simulator, quando o sistema é iniciado, então uma sessão é criada e a coleta começa imediatamente.
   - Dado que o simulador não está em execução na mesma máquina, quando o Blackbox Simulator tenta detectar o evento de motor, então o sistema tenta reconectar silenciosamente a cada 5 segundos sem bloquear a aplicação.
 
@@ -47,16 +48,16 @@ Objetivo: Acompanhar os parâmetros de voo no painel de tempo real, na janela do
 Pré-condições: O Blackbox Simulator está em execução. O painel de tempo real exige uma sessão de coleta ativa (UC-001 foi concluído).
 Fluxo principal:
   1. Quando a sessão fica ativa, o sistema exibe sozinho o painel de tempo real na área principal da própria janela do app, sem ação do piloto e sem segunda janela.
-  2. O painel mostra o valor atual de cada parâmetro do conjunto inicial (Altitude MSL, Velocidade IAS, Velocidade vertical, Rumo magnético, Arfagem, Rolagem).
+  2. O painel mostra o valor atual de cada parâmetro do conjunto de parâmetros (ver product.md).
   3. A cada 1 s, mesma cadência da coleta, o painel atualiza os valores com a leitura do simulador, enquanto a sessão está ativa.
 Fluxos alternativos:
   A. Sem sessão ativa: no lugar do painel, o sistema exibe a orientação "Inicie o simulador e ligue o motor para começar".
   B. Sessão encerrada: o painel mantém os últimos valores congelados e exibe o aviso "Sessão encerrada". Só ocorre no uso real depois do UC-003. Se a sessão encerrar com a conexão caída, os valores congelados ficam como "—", porque não há valor confiável para manter (decisão do HITL-4 do loop-002).
   C. Sem sinal durante a sessão (conexão com o simulador perdida, ou 2 s sem leitura nova com a conexão aberta): os valores viram "—" e o painel exibe o aviso "Sem sinal do simulador". Quando as leituras voltam, os valores voltam e o aviso some.
 Fora do escopo deste caso de uso: maximizar e reduzir cards do painel (vira item do backlog).
-Regras aplicadas: RN-001, RN-002, RN-003, RN-004, RN-006
+Regras aplicadas: RN-001, RN-002, RN-003, RN-004, RN-006, RN-007
 Critérios de aceite:
-  - Dado que uma sessão fica ativa, quando o Blackbox Simulator está aberto, então o painel de tempo real aparece sozinho na área principal da janela do app, sem ação do piloto, com os parâmetros do conjunto inicial.
+  - Dado que uma sessão fica ativa, quando o Blackbox Simulator está aberto, então o painel de tempo real aparece sozinho na área principal da janela do app, sem ação do piloto, com os parâmetros do conjunto de parâmetros.
   - Dado que o painel está exibido, quando uma nova leitura chega do simulador, então o painel é atualizado a cada 1 s, com atraso máximo de 2 s entre o simulador e o painel, sem enviar comandos nem alterar o estado do simulador.
   - Dado que não há sessão ativa, quando o piloto olha a janela do app, então o sistema exibe a orientação "Inicie o simulador e ligue o motor para começar".
   - Dado que a sessão foi encerrada, quando o painel deixa de receber leituras, então os últimos valores ficam congelados e o painel exibe o aviso "Sessão encerrada".
@@ -107,13 +108,36 @@ Ator: Piloto
 Objetivo: Revisar os parâmetros registrados de um voo selecionado para identificar pontos de melhoria.
 Pré-condições: O piloto selecionou uma sessão em UC-004.
 Fluxo principal:
-  1. O sistema exibe os parâmetros do conjunto inicial ao longo do tempo da sessão selecionada.
+  1. O sistema exibe os parâmetros do conjunto de parâmetros ao longo do tempo da sessão selecionada.
   2. O piloto navega pelos dados para analisar o comportamento dos parâmetros durante o voo.
 Fluxos alternativos: —
 Regras aplicadas: RN-002, RN-005
 Critérios de aceite:
-  - Dado que uma sessão foi selecionada, quando a tela de debriefing é aberta, então todos os parâmetros do conjunto inicial registrados durante aquele voo são exibidos.
+  - Dado que uma sessão foi selecionada, quando a tela de debriefing é aberta, então todos os parâmetros do conjunto de parâmetros registrados durante aquele voo são exibidos.
   - Dado que os dados estão sendo exibidos, quando o piloto navega pela linha do tempo, então os valores dos parâmetros correspondem ao momento selecionado.
+
+---
+
+UC-006
+Nome: Coletar posição, motor e flapes
+Ator: Piloto
+Objetivo: Ampliar o conjunto de parâmetros com a posição da aeronave, os controles do motor 1 e os flapes, para que sejam registrados e acompanhados durante o voo.
+Pré-condições: Uma sessão de coleta está ativa (UC-001).
+Fluxo principal:
+  1. Durante a sessão ativa, o sistema coleta latitude, longitude, posição da manete, mistura, RPM e flapes junto com os parâmetros já existentes, na mesma cadência de 1 s.
+  2. O sistema grava as leituras de cada parâmetro na sessão.
+  3. O painel de tempo real exibe os 12 parâmetros do conjunto.
+Fluxos alternativos:
+  A. Aeronave multimotor: manete, mistura e RPM são os do motor 1.
+  B. Aeronave sem um dos itens: o parâmetro aparece como "N/A" e nenhuma leitura dele é gravada (RN-007).
+Regras aplicadas: RN-001, RN-002, RN-006, RN-007
+Critérios de aceite:
+  - Dado que uma sessão está ativa, quando o simulador envia as leituras, então latitude, longitude, posição da manete, mistura, RPM e flapes são gravados a cada 1 s junto com os parâmetros já existentes.
+  - Dado que uma sessão está ativa, quando o painel de tempo real é exibido, então os 12 parâmetros do conjunto aparecem, cada um com o seu valor atual.
+  - Dado que a aeronave é multimotor, quando há sessão ativa, então manete, mistura e RPM exibidos e gravados são os do motor 1.
+  - Dado que a aeronave não possui um dos itens (por exemplo, mistura), quando há sessão ativa, então o card desse parâmetro mostra "N/A" e nenhuma leitura dele é gravada.
+  - Dado que os flapes estão em qualquer posição, quando o valor é exibido, então ele aparece em % de extensão, de 0 a 100.
+Em aberto: organização do painel com 12 cards (decisão de UX); casas decimais da latitude e da longitude.
 
 ---
 

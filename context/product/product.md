@@ -3,7 +3,7 @@
 > Propósito: Visão de alto nível do produto: o que é, que problema resolve e para quem.
 > Atualizar quando: mudar o problema, o público ou o escopo do produto.
 > Relacionados: [glossary.md](glossary.md)
-> Última atualização: 2026-11-16 · loop-002
+> Última atualização: 2026-11-17
 
 ## Visão
 
@@ -26,7 +26,7 @@ Transformar os dados brutos do simulador em informação acionável, permitindo 
 
 ### Dentro do escopo
 
-- Coleta de um conjunto inicial de parâmetros de voo a partir do simulador rodando na mesma máquina; novos parâmetros poderão ser adicionados em versões futuras.
+- Coleta de um conjunto configurado de parâmetros de voo a partir do simulador rodando na mesma máquina; novos parâmetros podem ser adicionados ao conjunto.
 - Registro persistente dos dados de cada voo.
 - Visualização dos parâmetros em tempo real durante o voo.
 - Análise e revisão dos dados após o voo.
@@ -40,10 +40,18 @@ Transformar os dados brutos do simulador em informação acionável, permitindo 
 
 ## Métricas de sucesso
 
-- Após um voo completo (ex.: circuito de tráfego padrão), todos os parâmetros do conjunto inicial estão disponíveis para revisão sem perda de dados.
+- Após um voo completo (ex.: circuito de tráfego padrão), todos os parâmetros do conjunto de parâmetros estão disponíveis para revisão sem perda de dados.
 - O piloto consegue identificar, na análise pós-voo, ao menos um ponto específico de melhoria por sessão.
 - A visualização em tempo real atualiza os valores a cada 1 s, com atraso máximo de 2 s entre o simulador e o painel, sem interferir no simulador.
 
-## Conjunto inicial de parâmetros
+## Conjunto de parâmetros
 
-Definido no loop-001 e confirmado no HITL-1 do loop-002: Altitude MSL (ft), Velocidade IAS (kt), Velocidade vertical (fpm), Rumo magnético (°), Arfagem (°) e Rolagem (°). Os identificadores técnicos estão em [../engineering/domain_model.md](../engineering/domain_model.md).
+Conjunto inicial (loop-001, confirmado no HITL-1 do loop-002): Altitude MSL (ft), Velocidade IAS (kt), Velocidade vertical (fpm), Rumo magnético (°), Arfagem (°) e Rolagem (°).
+
+Ampliação (UC-006): Latitude (°), Longitude (°), Posição da manete (%), Mistura (%), RPM (rpm) e Flapes (% de extensão). Manete, mistura e RPM são do motor 1, mesmo em aeronaves multimotor.
+
+Item que a aeronave não possui aparece como "N/A" (RN-007).
+
+Os identificadores técnicos estão em [../engineering/domain_model.md](../engineering/domain_model.md).
+
+Em aberto: casas decimais de exibição da latitude e da longitude.
