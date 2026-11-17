@@ -1,13 +1,23 @@
 import React, { useEffect } from 'react'
 import { useActiveSession } from './hooks/use-active-session'
 import { useNotification } from './hooks/use-notification'
+import { useConnectionState } from './hooks/use-connection-state'
+import { useActiveParameters } from './hooks/use-active-parameters'
+import { useLiveReadings } from './hooks/use-live-readings'
 import { onSessionStarted, onSessionEnded } from './ipc/session-ipc'
 import { StatusBar } from './components/StatusBar'
 import { Notification } from './components/Notification'
+import { RealtimePanel } from './components/realtime-panel'
+import { derivePanelState } from './components/panel-state'
 
 export function App(): React.ReactElement {
   const { sessaoAtiva, loading } = useActiveSession()
+  const conexao = useConnectionState()
+  const { parametros, erro: erroParametros } = useActiveParameters()
+  const { valores, semDados } = useLiveReadings(sessaoAtiva, conexao)
   const { notification, showNotification, clearNotification } = useNotification()
+
+  const estadoPainel = derivePanelState({ sessao: sessaoAtiva, conexao, semDados })
 
   useEffect(() => {
     return onSessionStarted(() => {
@@ -22,13 +32,12 @@ export function App(): React.ReactElement {
   }, [showNotification])
 
   const contentStyle: React.CSSProperties = {
-    paddingTop: '64px',
     padding: '64px 16px 16px',
   }
 
   return (
     <div>
-      <StatusBar sessaoAtiva={sessaoAtiva} />
+      <StatusBar sessaoAtiva={sessaoAtiva} conexao={conexao} />
       {notification !== null && (
         <Notification
           message={notification.message}
@@ -40,8 +49,16 @@ export function App(): React.ReactElement {
         {loading && (
           <p style={{ color: 'var(--color-text-secondary)' }}>Aguardando...</p>
         )}
-        {!loading && sessaoAtiva === null && (
-          <p>Nenhum voo registrado. Inicie o simulador e ligue o motor para começar.</p>
+        {!loading && estadoPainel === 'sem-sessao' && (
+          <p>Inicie o simulador e ligue o motor para começar</p>
+        )}
+        {!loading && estadoPainel !== 'sem-sessao' && (
+          <RealtimePanel
+            parametros={parametros}
+            valores={valores}
+            estado={estadoPainel}
+            erroParametros={erroParametros}
+          />
         )}
       </main>
     </div>

@@ -3,6 +3,8 @@ import path from 'path'
 import { runMigrations } from './db/migrator'
 import { CollectionService } from './simconnect/collection-service'
 import { registerSessionHandlers, emitSessionStarted } from './ipc/session-handler'
+import { registerParameterHandlers, emitParameterReadings } from './ipc/parameter-handler'
+import { registerConnectionHandlers, emitConnectionState } from './ipc/connection-handler'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -18,6 +20,11 @@ function createWindow(): BrowserWindow {
   })
 
   win.loadFile(path.join(__dirname, '../../renderer/index.html'))
+  win.on('closed', () => {
+    if (mainWindow === win) {
+      mainWindow = null
+    }
+  })
   return win
 }
 
@@ -31,9 +38,19 @@ app.whenReady().then(() => {
   const collectionService = new CollectionService()
 
   registerSessionHandlers(getMainWindow)
+  registerParameterHandlers()
+  registerConnectionHandlers(() => collectionService.getEstadoConexao())
 
   collectionService.onSessaoCriada((sessao) => {
     emitSessionStarted(getMainWindow, sessao)
+  })
+
+  collectionService.onLeituras((pacote) => {
+    emitParameterReadings(getMainWindow, pacote)
+  })
+
+  collectionService.onConexaoAlterada((estado) => {
+    emitConnectionState(getMainWindow, estado)
   })
 
   mainWindow = createWindow()

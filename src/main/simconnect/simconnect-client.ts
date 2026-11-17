@@ -6,7 +6,7 @@ import {
   SimConnectConstants,
 } from 'node-simconnect'
 import type { ConnectionHandle } from 'node-simconnect'
-import type { ParametroDeVoo } from '../../shared/types'
+import type { EstadoConexao, LeituraDoPacote, ParametroDeVoo } from '../../shared/types'
 
 const APP_NAME = 'BlackboxSimulator'
 const RETRY_INTERVAL_MS = 5_000
@@ -35,12 +35,22 @@ export type ParameterReadingPayload = {
   timestamp: string
 }
 
+export type ParameterBatchPayload = {
+  timestamp: string
+  leituras: LeituraDoPacote[]
+}
+
 type EngineStartedCallback = () => void
 type ParameterReadingCallback = (payload: ParameterReadingPayload) => void
+type ParameterBatchCallback = (payload: ParameterBatchPayload) => void
+type ConnectionChangeCallback = (estado: EstadoConexao) => void
 
 export class SimConnectClient {
   private engineStartedCallbacks: EngineStartedCallback[] = []
   private parameterReadingCallbacks: ParameterReadingCallback[] = []
+  private parameterBatchCallbacks: ParameterBatchCallback[] = []
+  private connectionChangeCallbacks: ConnectionChangeCallback[] = []
+  private estadoConexao: EstadoConexao = 'desconectado'
   private parametros: ParametroDeVoo[] = []
   private handle: ConnectionHandle | null = null
   private retryTimer: ReturnType<typeof setTimeout> | null = null
@@ -52,6 +62,20 @@ export class SimConnectClient {
 
   onParameterReading(callback: ParameterReadingCallback): void {
     this.parameterReadingCallbacks.push(callback)
+  }
+
+  /** Recebe todas as leituras de um ciclo, uma vez por `simObjectData` de parâmetros. */
+  onParameterBatch(callback: ParameterBatchCallback): void {
+    this.parameterBatchCallbacks.push(callback)
+  }
+
+  /** Recebe o novo estado da conexão, só quando ele muda. */
+  onConnectionChange(callback: ConnectionChangeCallback): void {
+    this.connectionChangeCallbacks.push(callback)
+  }
+
+  getEstadoConexao(): EstadoConexao {
+    return this.estadoConexao
   }
 
   connect(parametros: ParametroDeVoo[]): void {
@@ -72,6 +96,13 @@ export class SimConnectClient {
       }
       this.handle = null
     }
+    this.setEstadoConexao('desconectado')
+  }
+
+  private setEstadoConexao(estado: EstadoConexao): void {
+    if (estado === this.estadoConexao) return
+    this.estadoConexao = estado
+    this.connectionChangeCallbacks.forEach((cb) => cb(estado))
   }
 
   private tryConnect(): void {
@@ -79,22 +110,26 @@ export class SimConnectClient {
       .then(({ handle }) => {
         console.log('[SimConnect] Connected.')
         this.handle = handle
+        this.setEstadoConexao('conectado')
 
         handle.on('error', (err) => {
           console.error('[SimConnect] Connection error:', err)
           this.handle = null
+          this.setEstadoConexao('desconectado')
           this.scheduleRetry()
         })
 
         handle.on('close', () => {
           console.warn('[SimConnect] Connection closed.')
           this.handle = null
+          this.setEstadoConexao('desconectado')
           this.scheduleRetry()
         })
 
         handle.on('quit', () => {
           console.warn('[SimConnect] Simulator quit.')
           this.handle = null
+          this.setEstadoConexao('desconectado')
           this.scheduleRetry()
         })
 
@@ -113,14 +148,17 @@ export class SimConnectClient {
           if (recvData.requestID === REQ_ID_PARAMS) {
             const timestamp = new Date().toISOString()
             const activeParams = this.parametros.filter((p) => p.ativo)
+            const leituras: LeituraDoPacote[] = []
             for (const param of activeParams) {
               if (SIMVAR_MAP[param.id] !== undefined) {
                 const valor = recvData.data.readFloat64()
+                leituras.push({ parametroId: param.id, valor })
                 this.parameterReadingCallbacks.forEach((cb) =>
                   cb({ parametroId: param.id, valor, timestamp })
                 )
               }
             }
+            this.parameterBatchCallbacks.forEach((cb) => cb({ timestamp, leituras }))
           }
         })
       })

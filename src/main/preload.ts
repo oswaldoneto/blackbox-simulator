@@ -1,6 +1,14 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { SESSION_GET_ACTIVE, SESSION_STARTED, SESSION_ENDED } from '../shared/ipc-channels'
-import type { Sessao } from '../shared/types'
+import {
+  SESSION_GET_ACTIVE,
+  SESSION_STARTED,
+  SESSION_ENDED,
+  PARAMETER_LIST_ACTIVE,
+  PARAMETER_READINGS,
+  CONNECTION_GET_STATE,
+  CONNECTION_STATE_CHANGED,
+} from '../shared/ipc-channels'
+import type { EstadoConexao, PacoteDeLeituras, ParametroDeVoo, Sessao } from '../shared/types'
 
 contextBridge.exposeInMainWorld('electronApi', {
   getActiveSessao: (): Promise<Sessao | null> =>
@@ -23,6 +31,32 @@ contextBridge.exposeInMainWorld('electronApi', {
     ipcRenderer.on(SESSION_ENDED, listener)
     return () => {
       ipcRenderer.removeListener(SESSION_ENDED, listener)
+    }
+  },
+
+  listActiveParametros: (): Promise<ParametroDeVoo[]> =>
+    ipcRenderer.invoke(PARAMETER_LIST_ACTIVE),
+
+  getConnectionState: (): Promise<EstadoConexao> =>
+    ipcRenderer.invoke(CONNECTION_GET_STATE),
+
+  onParameterReadings: (callback: (pacote: PacoteDeLeituras) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, pacote: PacoteDeLeituras): void => {
+      callback(pacote)
+    }
+    ipcRenderer.on(PARAMETER_READINGS, listener)
+    return () => {
+      ipcRenderer.removeListener(PARAMETER_READINGS, listener)
+    }
+  },
+
+  onConnectionStateChanged: (callback: (estado: EstadoConexao) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, estado: EstadoConexao): void => {
+      callback(estado)
+    }
+    ipcRenderer.on(CONNECTION_STATE_CHANGED, listener)
+    return () => {
+      ipcRenderer.removeListener(CONNECTION_STATE_CHANGED, listener)
     }
   },
 })

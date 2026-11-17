@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { getActiveSessao, onSessionStarted } from '../ipc/session-ipc'
+import { getActiveSessao, onSessionStarted, onSessionEnded } from '../ipc/session-ipc'
 import type { Sessao } from '../../shared/types'
 
 interface UseActiveSessionReturn {
+  /** Sessão atual: ativa ou, depois do encerramento, a sessão encerrada. */
   sessaoAtiva: Sessao | null
   loading: boolean
 }
@@ -12,17 +13,41 @@ export function useActiveSession(): UseActiveSessionReturn {
   const [loading, setLoading] = useState<boolean>(true)
 
   useEffect(() => {
-    getActiveSessao().then((sessao) => {
+    let ativo = true
+    let recebeuEvento = false
+
+    const removeStartedListener = onSessionStarted((sessao) => {
+      recebeuEvento = true
       setSessaoAtiva(sessao)
       setLoading(false)
     })
 
-    const removeListener = onSessionStarted((sessao) => {
+    const removeEndedListener = onSessionEnded((sessao) => {
+      recebeuEvento = true
       setSessaoAtiva(sessao)
+      setLoading(false)
     })
 
+    getActiveSessao()
+      .then((sessao) => {
+        // Um evento recebido durante a consulta é mais recente que a resposta.
+        if (ativo && !recebeuEvento) {
+          setSessaoAtiva(sessao)
+        }
+      })
+      .catch((erro: unknown) => {
+        console.error('[useActiveSession] Falha ao consultar a sessão ativa:', erro)
+      })
+      .finally(() => {
+        if (ativo) {
+          setLoading(false)
+        }
+      })
+
     return () => {
-      removeListener()
+      ativo = false
+      removeStartedListener()
+      removeEndedListener()
     }
   }, [])
 

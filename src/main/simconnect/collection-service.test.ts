@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ----- mocks (hoisted so vi.mock factories can reference them) -----
+type ReadingPayload = { parametroId: string; valor: number; timestamp: string }
+type BatchPayload = { timestamp: string; leituras: { parametroId: string; valor: number }[] }
+type EstadoConexaoMock = 'conectado' | 'desconectado'
+
 const {
   mockCriarSessao,
   mockBuscarSessaoAtiva,
@@ -10,49 +14,36 @@ const {
   mockClientClose,
   mockClientOnEngineStarted,
   mockClientOnParameterReading,
-} = vi.hoisted(() => {
-  let capturedEngineCallbacks: (() => void)[] = []
-  let capturedReadingCallbacks: ((p: {
-    parametroId: string
-    valor: number
-    timestamp: string
-  }) => void)[] = []
+  mockClientOnParameterBatch,
+  mockClientOnConnectionChange,
+  mockClientGetEstadoConexao,
+} = vi.hoisted(() => ({
+  mockCriarSessao: vi.fn(),
+  mockBuscarSessaoAtiva: vi.fn(),
+  mockInserirLeitura: vi.fn(),
+  mockBuscarParametrosAtivos: vi.fn(),
+  mockClientConnect: vi.fn(),
+  mockClientClose: vi.fn(),
+  mockClientOnEngineStarted: vi.fn(),
+  mockClientOnParameterReading: vi.fn(),
+  mockClientOnParameterBatch: vi.fn(),
+  mockClientOnConnectionChange: vi.fn(),
+  mockClientGetEstadoConexao: vi.fn(),
+}))
 
-  const mockClientOnEngineStarted = vi.fn().mockImplementation((cb: () => void) => {
-    capturedEngineCallbacks.push(cb)
-  })
-  const mockClientOnParameterReading = vi.fn().mockImplementation(
-    (cb: (p: { parametroId: string; valor: number; timestamp: string }) => void) => {
-      capturedReadingCallbacks.push(cb)
-    }
-  )
-
-  return {
-    mockCriarSessao: vi.fn(),
-    mockBuscarSessaoAtiva: vi.fn(),
-    mockInserirLeitura: vi.fn(),
-    mockBuscarParametrosAtivos: vi.fn(),
-    mockClientConnect: vi.fn(),
-    mockClientClose: vi.fn(),
-    mockClientOnEngineStarted,
-    mockClientOnParameterReading,
-    // expose captured arrays via getters on the returned fns themselves
-  }
-})
-
-// We need the callback arrays accessible in tests.
-// Store them separately via hoisted arrays captured per-test in beforeEach.
+// Callbacks registrados pelo serviço no client, recapturados a cada teste em beforeEach.
 let capturedEngineStartedCallbacks: (() => void)[] = []
-let capturedParameterReadingCallbacks: ((p: {
-  parametroId: string
-  valor: number
-  timestamp: string
-}) => void)[] = []
+let capturedParameterReadingCallbacks: ((p: ReadingPayload) => void)[] = []
+let capturedParameterBatchCallbacks: ((p: BatchPayload) => void)[] = []
+let capturedConnectionChangeCallbacks: ((estado: EstadoConexaoMock) => void)[] = []
 
 vi.mock('./simconnect-client', () => ({
   SimConnectClient: vi.fn().mockImplementation(() => ({
     onEngineStarted: mockClientOnEngineStarted,
     onParameterReading: mockClientOnParameterReading,
+    onParameterBatch: mockClientOnParameterBatch,
+    onConnectionChange: mockClientOnConnectionChange,
+    getEstadoConexao: mockClientGetEstadoConexao,
     connect: mockClientConnect,
     close: mockClientClose,
   })),
@@ -104,16 +95,22 @@ describe('CollectionService', () => {
     vi.clearAllMocks()
     capturedEngineStartedCallbacks = []
     capturedParameterReadingCallbacks = []
+    capturedParameterBatchCallbacks = []
+    capturedConnectionChangeCallbacks = []
 
     // Re-wire captured arrays after clearAllMocks resets the implementations
     mockClientOnEngineStarted.mockImplementation((cb: () => void) => {
       capturedEngineStartedCallbacks.push(cb)
     })
-    mockClientOnParameterReading.mockImplementation(
-      (cb: (p: { parametroId: string; valor: number; timestamp: string }) => void) => {
-        capturedParameterReadingCallbacks.push(cb)
-      }
-    )
+    mockClientOnParameterReading.mockImplementation((cb: (p: ReadingPayload) => void) => {
+      capturedParameterReadingCallbacks.push(cb)
+    })
+    mockClientOnParameterBatch.mockImplementation((cb: (p: BatchPayload) => void) => {
+      capturedParameterBatchCallbacks.push(cb)
+    })
+    mockClientOnConnectionChange.mockImplementation((cb: (e: EstadoConexaoMock) => void) => {
+      capturedConnectionChangeCallbacks.push(cb)
+    })
 
     mockBuscarParametrosAtivos.mockReturnValue([makeParametro()])
     mockBuscarSessaoAtiva.mockReturnValue(null)
@@ -226,5 +223,92 @@ describe('CollectionService', () => {
     service.inicializar()
     service.encerrar()
     expect(mockClientClose).toHaveBeenCalledOnce()
+  })
+
+  // --- UC-002: leituras em tempo real (CA-002-2) ---
+
+  describe('onLeituras', () => {
+    const lote: BatchPayload = {
+      timestamp: '2024-01-01T00:00:01.000Z',
+      leituras: [
+        { parametroId: 'altitude_msl', valor: 4500 },
+        { parametroId: 'airspeed_ias', valor: 112 },
+      ],
+    }
+
+    it('deve emitir pacote com sessaoId no mesmo ciclo do lote quando há sessão ativa', () => {
+      const service = new CollectionService()
+      const spy = vi.fn()
+      service.onLeituras(spy)
+      service.inicializar()
+      capturedEngineStartedCallbacks.forEach((cb) => cb())
+
+      capturedParameterBatchCallbacks.forEach((cb) => cb(lote))
+
+      // Síncrono: o pacote sai na mesma chamada do lote, sem timer.
+      expect(spy).toHaveBeenCalledOnce()
+      expect(spy.mock.calls[0][0]).toEqual({
+        sessaoId: 'nova-sessao-1',
+        timestamp: lote.timestamp,
+        leituras: lote.leituras,
+      })
+    })
+
+    it('não deve emitir pacote quando não há sessão ativa', () => {
+      const service = new CollectionService()
+      const spy = vi.fn()
+      service.onLeituras(spy)
+      service.inicializar()
+
+      capturedParameterBatchCallbacks.forEach((cb) => cb(lote))
+
+      expect(spy).not.toHaveBeenCalled()
+    })
+
+    it('deve emitir pacote com o id da sessão existente ao reiniciar com sessão ativa', () => {
+      mockBuscarSessaoAtiva.mockReturnValue(makeSessao({ id: 'sessao-existente' }))
+      const service = new CollectionService()
+      const spy = vi.fn()
+      service.onLeituras(spy)
+      service.inicializar()
+
+      capturedParameterBatchCallbacks.forEach((cb) => cb(lote))
+
+      expect(spy).toHaveBeenCalledOnce()
+      expect(spy.mock.calls[0][0].sessaoId).toBe('sessao-existente')
+    })
+
+    it('deve emitir um pacote por lote recebido', () => {
+      const service = new CollectionService()
+      const spy = vi.fn()
+      service.onLeituras(spy)
+      service.inicializar()
+      capturedEngineStartedCallbacks.forEach((cb) => cb())
+
+      capturedParameterBatchCallbacks.forEach((cb) => cb(lote))
+      capturedParameterBatchCallbacks.forEach((cb) => cb(lote))
+
+      expect(spy).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  describe('conexão', () => {
+    it('deve repassar mudança de conexão do client para onConexaoAlterada', () => {
+      const service = new CollectionService()
+      const spy = vi.fn()
+      service.onConexaoAlterada(spy)
+      service.inicializar()
+
+      capturedConnectionChangeCallbacks.forEach((cb) => cb('conectado'))
+      capturedConnectionChangeCallbacks.forEach((cb) => cb('desconectado'))
+
+      expect(spy.mock.calls.map((c) => c[0])).toEqual(['conectado', 'desconectado'])
+    })
+
+    it('deve devolver o estado de conexão do client em getEstadoConexao', () => {
+      mockClientGetEstadoConexao.mockReturnValue('conectado')
+      const service = new CollectionService()
+      expect(service.getEstadoConexao()).toBe('conectado')
+    })
   })
 })

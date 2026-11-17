@@ -1,0 +1,55 @@
+.realtime-panel__notice {
+  margin: 0 0 16px;
+  font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--color-text-secondary);
+}
+
+.realtime-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 599px) {
+  .realtime-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.parameter-indicator {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+.parameter-indicator__label,
+.parameter-indicator__unit {
+  font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.parameter-indicator__reading {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.parameter-indicator__value {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 24px;
+  font-weight: 400;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.parameter-indicator__value--no-signal {
+  color: var(--color-text-secondary);
+}

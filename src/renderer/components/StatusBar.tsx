@@ -1,8 +1,9 @@
 import React from 'react'
-import type { Sessao } from '../../shared/types'
+import type { EstadoConexao, Sessao } from '../../shared/types'
 
 interface StatusBarProps {
   sessaoAtiva: Sessao | null
+  conexao: EstadoConexao
 }
 
 type SessionIndicator = {
@@ -10,14 +11,21 @@ type SessionIndicator = {
   label: string
 }
 
-function getSessionIndicator(sessaoAtiva: Sessao | null): SessionIndicator {
+function getSessionIndicator(
+  sessaoAtiva: Sessao | null,
+  conexao: EstadoConexao
+): SessionIndicator {
+  // Sem conexão com o simulador vence os demais estados, inclusive "Sessão ativa".
+  if (conexao === 'desconectado') {
+    return { color: 'var(--color-error)', label: 'Sem conexão' }
+  }
   if (sessaoAtiva !== null && sessaoAtiva.status === 'ativa') {
     return { color: 'var(--color-success)', label: 'Sessão ativa' }
   }
   if (sessaoAtiva !== null) {
     return { color: 'var(--color-text-secondary)', label: 'Encerrada' }
   }
-  return { color: 'var(--color-error)', label: 'Sem conexão' }
+  return { color: 'var(--color-text-secondary)', label: 'Aguardando motor' }
 }
 
 const barStyle: React.CSSProperties = {
@@ -55,8 +63,8 @@ const labelStyle: React.CSSProperties = {
   color: 'var(--color-text-secondary)',
 }
 
-export function StatusBar({ sessaoAtiva }: StatusBarProps): React.ReactElement {
-  const { color, label } = getSessionIndicator(sessaoAtiva)
+export function StatusBar({ sessaoAtiva, conexao }: StatusBarProps): React.ReactElement {
+  const { color, label } = getSessionIndicator(sessaoAtiva, conexao)
 
   const dotStyle: React.CSSProperties = {
     width: '8px',

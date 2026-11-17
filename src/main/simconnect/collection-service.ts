@@ -2,14 +2,18 @@ import { SimConnectClient } from './simconnect-client'
 import { criarSessao, buscarSessaoAtiva } from '../db/session-repository'
 import { inserirLeitura } from '../db/reading-repository'
 import { buscarParametrosAtivos } from '../db/parameter-repository'
-import type { Sessao } from '../../shared/types'
+import type { EstadoConexao, PacoteDeLeituras, Sessao } from '../../shared/types'
 
 type SessaoCreatedCallback = (sessao: Sessao) => void
+type LeiturasCallback = (pacote: PacoteDeLeituras) => void
+type ConexaoAlteradaCallback = (estado: EstadoConexao) => void
 
 export class CollectionService {
   private client: SimConnectClient
   private sessaoAtiva: Sessao | null = null
   private sessaoCreatedCallbacks: SessaoCreatedCallback[] = []
+  private leiturasCallbacks: LeiturasCallback[] = []
+  private conexaoAlteradaCallbacks: ConexaoAlteradaCallback[] = []
 
   constructor() {
     this.client = new SimConnectClient()
@@ -17,6 +21,20 @@ export class CollectionService {
 
   onSessaoCriada(callback: SessaoCreatedCallback): void {
     this.sessaoCreatedCallbacks.push(callback)
+  }
+
+  /** Recebe um pacote por ciclo de coleta, no mesmo ciclo da leitura, só com sessão ativa. */
+  onLeituras(callback: LeiturasCallback): void {
+    this.leiturasCallbacks.push(callback)
+  }
+
+  /** Recebe o novo estado da conexão com o SimConnect quando ele muda. */
+  onConexaoAlterada(callback: ConexaoAlteradaCallback): void {
+    this.conexaoAlteradaCallbacks.push(callback)
+  }
+
+  getEstadoConexao(): EstadoConexao {
+    return this.client.getEstadoConexao()
   }
 
   inicializar(): void {
@@ -34,6 +52,16 @@ export class CollectionService {
         timestamp,
         valor,
       })
+    })
+
+    this.client.onParameterBatch(({ timestamp, leituras }) => {
+      if (this.sessaoAtiva === null) return
+      const pacote: PacoteDeLeituras = { sessaoId: this.sessaoAtiva.id, timestamp, leituras }
+      this.leiturasCallbacks.forEach((cb) => cb(pacote))
+    })
+
+    this.client.onConnectionChange((estado) => {
+      this.conexaoAlteradaCallbacks.forEach((cb) => cb(estado))
     })
 
     this.client.connect(parametros)

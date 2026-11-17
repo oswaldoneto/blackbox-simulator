@@ -75,7 +75,7 @@ describe('sessionHandler', () => {
   describe('emitSessionStarted', () => {
     it('deve emitir session:started ao renderer quando sessão é criada', () => {
       const sessao = makeSessao({ id: 'nova-sessao' })
-      const fakeWin = { webContents: { send: mockWebContentsSend } }
+      const fakeWin = { isDestroyed: () => false, webContents: { send: mockWebContentsSend } }
       const getWindow = vi.fn().mockReturnValue(fakeWin)
 
       emitSessionStarted(getWindow as never, sessao)
@@ -91,12 +91,18 @@ describe('sessionHandler', () => {
       emitSessionStarted(() => null, makeSessao())
       expect(mockWebContentsSend).not.toHaveBeenCalled()
     })
+
+    it('não deve emitir session:started quando a janela foi destruída', () => {
+      const fakeWin = { isDestroyed: () => true, webContents: { send: mockWebContentsSend } }
+      emitSessionStarted((() => fakeWin) as never, makeSessao())
+      expect(mockWebContentsSend).not.toHaveBeenCalled()
+    })
   })
 
   describe('emitSessionEnded', () => {
     it('deve emitir session:ended ao renderer quando sessão é encerrada', () => {
       const sessao = makeSessao({ id: 'sessao-encerrada', status: 'encerrada', encerradaEm: '2024-01-01T01:00:00.000Z' })
-      const fakeWin = { webContents: { send: mockWebContentsSend } }
+      const fakeWin = { isDestroyed: () => false, webContents: { send: mockWebContentsSend } }
       const getWindow = vi.fn().mockReturnValue(fakeWin)
 
       emitSessionEnded(getWindow as never, sessao)
@@ -110,6 +116,12 @@ describe('sessionHandler', () => {
 
     it('não deve emitir session:ended quando não há janela', () => {
       emitSessionEnded(() => null, makeSessao())
+      expect(mockWebContentsSend).not.toHaveBeenCalled()
+    })
+
+    it('não deve emitir session:ended quando a janela foi destruída', () => {
+      const fakeWin = { isDestroyed: () => true, webContents: { send: mockWebContentsSend } }
+      emitSessionEnded((() => fakeWin) as never, makeSessao())
       expect(mockWebContentsSend).not.toHaveBeenCalled()
     })
   })

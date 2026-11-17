@@ -14,7 +14,7 @@ export function emitSessionStarted(
   sessao: Sessao
 ): void {
   const win = getWindow()
-  if (win !== null) {
+  if (win !== null && !win.isDestroyed()) {
     win.webContents.send(SESSION_STARTED, sessao)
   }
 }
@@ -24,7 +24,7 @@ export function emitSessionEnded(
   sessao: Sessao
 ): void {
   const win = getWindow()
-  if (win !== null) {
+  if (win !== null && !win.isDestroyed()) {
     win.webContents.send(SESSION_ENDED, sessao)
   }
 }

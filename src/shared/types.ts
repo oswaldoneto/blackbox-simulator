@@ -21,3 +21,19 @@ export interface LeituraDeParametro {
   timestamp: string
   valor: number
 }
+
+/** Estado da conexão do processo main com o SimConnect. */
+export type EstadoConexao = 'conectado' | 'desconectado'
+
+/** Valor lido de um parâmetro num ciclo de coleta, antes de ir para o banco. */
+export interface LeituraDoPacote {
+  parametroId: string
+  valor: number
+}
+
+/** Leituras de um ciclo de coleta (1 s), enviadas ao renderer só com sessão ativa. */
+export interface PacoteDeLeituras {
+  sessaoId: string
+  timestamp: string
+  leituras: LeituraDoPacote[]
+}
