@@ -3,7 +3,7 @@
 > Propósito: Diretrizes de design da interface gráfica.
 > Atualizar quando: mudar um padrão visual ou entrar um componente novo.
 > Relacionados: [usability.md](usability.md)
-> Última atualização: 2026-11-17 · loop-003
+> Última atualização: 2026-11-17 · loop-004
 
 ## Princípios visuais
 
@@ -73,11 +73,12 @@ Regra: estado de sessão ativa usa `color-success` + rótulo "Sessão ativa". Es
 - Estados (precedência: sem sessão, depois encerrada, depois sem sinal, depois ativa):
   - **Sem sessão:** painel não é exibido; a área principal mostra "Inicie o simulador e ligue o motor para começar".
   - **Ativa:** grade com os valores ao vivo, atualizados a cada ciclo de 1 s.
-  - **Encerrada:** últimos valores congelados e aviso "Sessão encerrada".
+  - **Encerrada:** últimos valores congelados e aviso "Sessão encerrada". Ocorre no uso real desde o loop-004 (UC-003): quando a sessão encerra (aeronave no solo e motor parado por 15 s seguidos) e também quando a gravação do encerramento falha (a tela mostra "Encerrada" e a falha aparece só na notificação de erro). O painel fica encerrado até o motor ser religado (nova sessão, com "Coleta iniciada") ou o app ser fechado.
   - **Sem sinal:** conexão com o simulador perdida durante a sessão ou 2 s sem dados novos; os valores viram "—" (exceto os cards N/A, que continuam "N/A") e aparece o aviso "Sem sinal do simulador". Os valores voltam quando os dados retornam.
   - **Erro ao carregar parâmetros:** se a consulta dos parâmetros ativos falhar, a grade é substituída pelo aviso "Não foi possível carregar os parâmetros."
 - Enquanto a consulta inicial não responde, a área principal mostra "Aguardando..." em `color-text-secondary`.
-- Implementado em: UC-002 (`realtime-panel.tsx`, `realtime-panel.css`); 12 parâmetros e estado N/A no UC-006.
+- Reabertura do app (loop-004, UC-003): a sessão encerrada não é mostrada de novo; a área principal mostra a orientação "Inicie o simulador e ligue o motor para começar". Uma sessão ativa gravada passa por uma verificação de até 15 s; durante ela a tela mostra a orientação (e a barra "Aguardando motor", se conectado), mesmo com o motor ligado. Se o motor estiver ligado, a sessão é confirmada e aparece "Coleta iniciada" com o painel; se não, é encerrada em silêncio e a orientação continua.
+- Implementado em: UC-002 (`realtime-panel.tsx`, `realtime-panel.css`); 12 parâmetros e estado N/A no UC-006; estado "Encerrada" no uso real e reabertura no UC-003.
 
 ### Aviso do painel
 - Usado em: painel de tempo real (UC-002), para "Sessão encerrada", "Sem sinal do simulador" e "Não foi possível carregar os parâmetros.".
@@ -99,11 +100,14 @@ Regra: estado de sessão ativa usa `color-success` + rótulo "Sessão ativa". Es
 - O eixo Y tem rótulo com a unidade do parâmetro.
 
 ### Notificação de sistema
-- Usada em: confirmação de início/encerramento de sessão (UC-001, UC-003).
+- Usada em: confirmação de início de sessão (UC-001), encerramento e falha ao gravar o encerramento (UC-003).
 - Posição: canto superior direito, sobreposta ao conteúdo, sem bloquear a leitura.
-- Desaparece automaticamente após 4 segundos.
+- Largura máxima de 320 px; textos longos quebram em várias linhas (o texto de erro do UC-003 ocupa 3 a 4 linhas).
+- Desaparece automaticamente após 4 segundos. Uma notificação nova substitui a anterior e o tempo de 4 s reinicia, inclusive quando o texto é igual (loop-004, HITL-3). Ex.: "Sessão encerrada. Dados salvos." seguida de "Coleta iniciada" 1 s depois fica 4 s completos na tela.
+- Não pode ser fechada nem pausada pelo piloto.
 - Estados: **informativo** (`color-accent`), **sucesso** (`color-success`), **erro** (`color-error`), **warning** (fundo `color-warning`, texto `color-text-primary` (#161616) para garantir contraste WCAG AA — razão ~12:1).
-- Implementado em: UC-001.
+- No UC-003: sucesso "Sessão encerrada. Dados salvos." só depois de o encerramento ser gravado; erro "Não foi possível salvar o encerramento. Os dados do voo foram mantidos e o encerramento será concluído na próxima abertura." se a gravação falhar. O encerramento feito na abertura do app não gera notificação. Textos em [usability.md](usability.md).
+- Implementado em: UC-001; sucesso e erro do encerramento e reinício do tempo no UC-003.
 
 ### Indicador de estado da sessão
 - Sempre visível na barra superior da aplicação.
@@ -111,11 +115,12 @@ Regra: estado de sessão ativa usa `color-success` + rótulo "Sessão ativa". Es
 - Estados, em ordem de precedência (o primeiro que se aplica vence):
   - **Sem conexão:** simulador não acessível (`conexao === 'desconectado'`) → `color-error` + "Sem conexão". Vence os demais, inclusive "Sessão ativa" (queda durante o voo) e "Encerrada".
   - **Ativo:** conectado e `sessaoAtiva.status === 'ativa'` → `color-success` + "Sessão ativa".
-  - **Encerrada:** conectado e sessão com status diferente de `'ativa'` → `color-text-secondary` + "Encerrada".
+  - **Encerrada:** conectado e sessão com status diferente de `'ativa'` → `color-text-secondary` + "Encerrada". Ocorre no uso real desde o loop-004 (UC-003), inclusive na falha ao gravar o encerramento.
   - **Aguardando motor:** conectado e sem sessão → `color-text-secondary` + "Aguardando motor".
 - "Sem conexão" se refere só à conexão com o simulador; não é mais usado para "sem sessão" (loop-002, HITL-1).
 - Os 2 s sem dados com a conexão aberta não alteram a barra (continua "Sessão ativa"); o estado aparece no aviso do painel.
-- Implementado em: UC-001; estados revistos no UC-002.
+- Na verificação de até 15 s da reabertura do app, a barra mostra "Aguardando motor" (se conectado), mesmo com o motor ligado (loop-004).
+- Implementado em: UC-001; estados revistos no UC-002; "Encerrada" no uso real no UC-003.
 
 ## Layout
 
@@ -162,3 +167,10 @@ Pontos da revisão de usabilidade do loop-003:
 
 - **Grupos sem título ou separador:** as três linhas da grade (voo, atitude e posição, motor e configuração) não têm título nem separador; a 2 colunas a divisão se perde. Decisão do HITL-3: débito de UX, para um loop de UX do painel junto com a maximização de card.
 - **Rolagem com 12 cards:** em 900px ou menos, a grade de 2 ou 1 coluna pode exigir rolagem, em tensão com o princípio "Leitura rápida primeiro" de [usability.md](usability.md). Aceita como consequência da grade 4/2/1.
+
+Pontos da revisão de usabilidade do loop-004 (UC-003). Decisão do HITL-3: débito de UX, para um loop de UX do painel junto com os débitos de notificação já registrados:
+
+- **Tempo de leitura da notificação de erro:** o texto de erro do encerramento (19 palavras) provavelmente não é lido inteiro em 4 s com atenção dividida, e a notificação não pode ser fechada nem pausada (WCAG 2.2.1).
+- **Notificação mais alta sobre o card:** com 3 a 4 linhas, a notificação de erro cobre mais o card do canto superior direito por 4 s (agrava "Notificação sobre o card").
+- **Falha só visível na notificação:** na falha ao gravar o encerramento, painel e barra mostram "Encerrada" como no sucesso; a falha só aparece na notificação de 4 s.
+- **Orientação durante a verificação na abertura:** por até 15 s após abrir o app, com o motor já ligado, a tela mostra "Aguardando motor" e a orientação para ligar o motor.

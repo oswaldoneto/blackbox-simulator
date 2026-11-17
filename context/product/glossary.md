@@ -3,7 +3,7 @@
 > Propósito: Termos do produto e o seu significado, para que pessoas e agentes usem as mesmas palavras.
 > Atualizar quando: surgir um termo novo ou um termo mudar de sentido.
 > Relacionados: nenhum
-> Última atualização: 2026-11-17 · loop-003
+> Última atualização: 2026-11-17 · loop-004
 
 ## Termos
 
@@ -12,7 +12,7 @@
 | Blackbox Simulator | Nome do produto; ferramenta que coleta, registra e visualiza parâmetros de voo de simuladores de voo. | product.md |
 | Caixa-preta | Sinônimo informal de Blackbox Simulator, inspirado no dispositivo de registro de dados de aeronaves reais. | product.md |
 | Simulador de voo | Software de simulação de voo, como Microsoft Flight Simulator 2024, que expõe dados de sensores da aeronave simulada. | product.md |
-| Voo | Sessão completa de simulação, desde a decolagem (ou início do táxi) até o pouso e parada da aeronave. | product.md |
+| Voo | Período registrado de uma simulação, do motor ligado ao encerramento da sessão (aeronave no solo com o motor parado por 15 s seguidos), incluindo táxi. Sinônimo de Sessão no contexto do produto. | product.md, use_cases.md (UC-003) |
 | Parâmetro de voo | Grandeza medida durante o voo, como altitude, velocidade, atitude ou potência do motor, fornecida pelo simulador. | product.md |
 | Conjunto de parâmetros | Parâmetros de voo que o produto coleta, registra e exibe; pode ser ampliado. | product.md, business_rules.md (RN-002) |
 | Conjunto inicial de parâmetros | Primeira versão do conjunto de parâmetros, com 6 parâmetros (loop-001). | product.md |
@@ -27,5 +27,7 @@
 | Painel de tempo real | Área principal da janela do Blackbox Simulator que, durante uma sessão ativa, exibe o valor atual de cada parâmetro do conjunto de parâmetros, atualizado a cada 1 s. Aparece sozinho quando a sessão fica ativa. | use_cases.md (UC-002) |
 | Sem sinal | Estado de um parâmetro no painel de tempo real quando, com a sessão ativa, a conexão com o simulador cai ou passam 2 s sem leitura nova. O valor é exibido como "—" e o painel mostra o aviso "Sem sinal do simulador". | use_cases.md (UC-002) |
 | Debriefing | Revisão e interpretação dos dados registrados após o encerramento do voo. Também chamado de análise pós-voo. | product.md |
-| Sessão | Uso contínuo do produto durante um voo, do início da coleta até o encerramento. Sinônimo de Voo no contexto do produto. | product.md |
+| Sessão | Uso contínuo do produto durante um voo, do motor ligado (início da coleta, RN-003) até o encerramento (RN-004). Sinônimo de Voo no contexto do produto. | product.md, business_rules.md (RN-003, RN-004) |
+| Sessão encerrada | Sessão com status encerrada e hora de fim gravada. Encerra quando a aeronave fica no solo com o motor parado por 15 s seguidos, ou na abertura do app quando ficou ativa sem encerramento. Nunca é reaberta: o motor religado abre uma nova sessão. | business_rules.md (RN-004), use_cases.md (UC-002, UC-003, UC-004) |
+| Duração | Tempo de uma sessão: hora de fim − hora de início, incluindo táxi e períodos sem sinal. O formato de exibição é definido no UC-004. | business_rules.md (RN-004), use_cases.md (UC-003, UC-004) |
 | Piloto | Usuário do produto — pode ser piloto real (profissional ou estudante de aviação) ou virtual (usuário de simulador) — que usa o Blackbox Simulator para melhorar suas técnicas com base em dados. | product.md |

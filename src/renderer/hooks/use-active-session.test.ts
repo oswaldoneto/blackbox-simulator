@@ -1,16 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 // Mock the IPC layer before importing the hook
-const { mockGetActiveSessao, mockOnSessionStarted, mockOnSessionEnded } = vi.hoisted(() => ({
-  mockGetActiveSessao: vi.fn(),
-  mockOnSessionStarted: vi.fn(),
-  mockOnSessionEnded: vi.fn(),
-}))
+const { mockGetActiveSessao, mockOnSessionStarted, mockOnSessionEnded, mockOnSessionEndFailed } =
+  vi.hoisted(() => ({
+    mockGetActiveSessao: vi.fn(),
+    mockOnSessionStarted: vi.fn(),
+    mockOnSessionEnded: vi.fn(),
+    mockOnSessionEndFailed: vi.fn(),
+  }))
 
 vi.mock('../ipc/session-ipc', () => ({
   getActiveSessao: () => mockGetActiveSessao(),
   onSessionStarted: (cb: (s: unknown) => void) => mockOnSessionStarted(cb),
   onSessionEnded: (cb: (s: unknown) => void) => mockOnSessionEnded(cb),
+  onSessionEndFailed: (cb: (s: unknown) => void) => mockOnSessionEndFailed(cb),
 }))
 
 import { useActiveSession } from './use-active-session'
@@ -33,6 +36,7 @@ describe('useActiveSession', () => {
     // Default: onSessionStarted returns a no-op unsubscribe
     mockOnSessionStarted.mockReturnValue(vi.fn())
     mockOnSessionEnded.mockReturnValue(vi.fn())
+    mockOnSessionEndFailed.mockReturnValue(vi.fn())
   })
 
   it('deve iniciar com loading = true', () => {
@@ -98,8 +102,10 @@ describe('useActiveSession', () => {
     mockGetActiveSessao.mockResolvedValue(null)
     const removeStarted = vi.fn()
     const removeEnded = vi.fn()
+    const removeEndFailed = vi.fn()
     mockOnSessionStarted.mockReturnValue(removeStarted)
     mockOnSessionEnded.mockReturnValue(removeEnded)
+    mockOnSessionEndFailed.mockReturnValue(removeEndFailed)
 
     const { result, unmount } = renderHook(() => useActiveSession())
     await waitFor(() => {
@@ -108,6 +114,7 @@ describe('useActiveSession', () => {
     unmount()
     expect(removeStarted).toHaveBeenCalledOnce()
     expect(removeEnded).toHaveBeenCalledOnce()
+    expect(removeEndFailed).toHaveBeenCalledOnce()
   })
 
   it('deve guardar a sessão encerrada ao receber evento SESSION_ENDED', async () => {
@@ -283,6 +290,86 @@ describe('useActiveSession', () => {
       })
       expect(result.current.sessaoAtiva).toBeNull()
       expect(result.current.loading).toBe(true)
+    })
+  })
+
+  // --- UC-003: falha ao gravar o encerramento (session:end-failed) ---
+
+  describe('session:end-failed', () => {
+    function capturarEndFailed(): { emitir: (s: Sessao) => void } {
+      let cb: ((s: Sessao) => void) | null = null
+      mockOnSessionEndFailed.mockImplementation((c: (s: Sessao) => void) => {
+        cb = c
+        return vi.fn()
+      })
+      return { emitir: (s) => act(() => cb!(s)) }
+    }
+
+    it('deve marcar como encerrada, só para exibição, a sessão recebida na falha', async () => {
+      mockGetActiveSessao.mockResolvedValue(sessaoAtiva)
+      const endFailed = capturarEndFailed()
+
+      const { result } = renderHook(() => useActiveSession())
+      await waitFor(() => expect(result.current.sessaoAtiva).toEqual(sessaoAtiva))
+
+      endFailed.emitir(sessaoAtiva)
+
+      expect(result.current.sessaoAtiva).toEqual({ ...sessaoAtiva, status: 'encerrada' })
+      // Não inventa hora de fim: no banco a sessão continua sem encerramento.
+      expect(result.current.sessaoAtiva?.encerradaEm).toBeNull()
+      expect(result.current.loading).toBe(false)
+    })
+
+    it('não deve alterar o objeto recebido no evento', async () => {
+      mockGetActiveSessao.mockResolvedValue(sessaoAtiva)
+      const endFailed = capturarEndFailed()
+      const recebida: Sessao = { ...sessaoAtiva }
+
+      const { result } = renderHook(() => useActiveSession())
+      await waitFor(() => expect(result.current.loading).toBe(false))
+      endFailed.emitir(recebida)
+
+      expect(recebida.status).toBe('ativa')
+    })
+
+    it('deve sair do carregamento e descartar a resposta tardia de getActiveSessao quando a falha chegou antes', async () => {
+      let resolver: (s: Sessao | null) => void = () => {}
+      mockGetActiveSessao.mockReturnValue(
+        new Promise<Sessao | null>((r) => {
+          resolver = r
+        })
+      )
+      const endFailed = capturarEndFailed()
+
+      const { result } = renderHook(() => useActiveSession())
+      expect(result.current.loading).toBe(true)
+      endFailed.emitir(sessaoAtiva)
+      expect(result.current.loading).toBe(false)
+
+      await act(async () => {
+        resolver(sessaoAtiva)
+      })
+
+      expect(result.current.sessaoAtiva?.status).toBe('encerrada')
+    })
+
+    it('deve aceitar uma nova sessão depois da falha (religamento)', async () => {
+      mockGetActiveSessao.mockResolvedValue(sessaoAtiva)
+      const endFailed = capturarEndFailed()
+      let started: ((s: Sessao) => void) | null = null
+      mockOnSessionStarted.mockImplementation((cb: (s: Sessao) => void) => {
+        started = cb
+        return vi.fn()
+      })
+
+      const { result } = renderHook(() => useActiveSession())
+      await waitFor(() => expect(result.current.loading).toBe(false))
+      endFailed.emitir(sessaoAtiva)
+
+      const nova: Sessao = { ...sessaoAtiva, id: 'sess-002' }
+      act(() => started!(nova))
+
+      expect(result.current.sessaoAtiva).toEqual(nova)
     })
   })
 })

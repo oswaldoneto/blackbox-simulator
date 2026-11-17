@@ -19,6 +19,7 @@ interface FakeApi {
   api: ElectronApi
   emitSessionStarted: (s: Sessao) => void
   emitSessionEnded: (s: Sessao) => void
+  emitSessionEndFailed: (s: Sessao) => void
   emitReadings: (p: PacoteDeLeituras) => void
   emitConnection: (e: EstadoConexao) => void
   totalListeners: () => number
@@ -35,6 +36,7 @@ function subscribe<T>(lista: Listener<T>[], cb: Listener<T>): () => void {
 function createFakeApi(opts: FakeApiOptions = {}): FakeApi {
   const started: Listener<Sessao>[] = []
   const ended: Listener<Sessao>[] = []
+  const endFailed: Listener<Sessao>[] = []
   const readings: Listener<PacoteDeLeituras>[] = []
   const connection: Listener<EstadoConexao>[] = []
 
@@ -42,6 +44,7 @@ function createFakeApi(opts: FakeApiOptions = {}): FakeApi {
     getActiveSessao: vi.fn().mockResolvedValue(opts.sessao ?? null),
     onSessionStarted: (cb) => subscribe(started, cb),
     onSessionEnded: (cb) => subscribe(ended, cb),
+    onSessionEndFailed: (cb) => subscribe(endFailed, cb),
     listActiveParametros: vi.fn().mockResolvedValue(opts.parametros ?? CATALOGO),
     getConnectionState: vi.fn().mockResolvedValue(opts.conexao ?? 'conectado'),
     onParameterReadings: (cb) => subscribe(readings, cb),
@@ -61,9 +64,11 @@ function createFakeApi(opts: FakeApiOptions = {}): FakeApi {
     api,
     emitSessionStarted: emitir(started),
     emitSessionEnded: emitir(ended),
+    emitSessionEndFailed: emitir(endFailed),
     emitReadings: emitir(readings),
     emitConnection: emitir(connection),
-    totalListeners: () => started.length + ended.length + readings.length + connection.length,
+    totalListeners: () =>
+      started.length + ended.length + endFailed.length + readings.length + connection.length,
   }
 }
 
@@ -714,6 +719,222 @@ describe('App', () => {
 
       expect(screen.getByRole('group', { name: 'Flapes: não aplicável' })).toBeInTheDocument()
       expect(screen.queryByRole('group', { name: 'Mistura: não aplicável' })).not.toBeInTheDocument()
+    })
+  })
+
+  // ---------- UC-003: encerramento da sessão ----------
+
+  describe('UC-003: encerramento da sessão', () => {
+    const ERRO_ENCERRAMENTO =
+      'Não foi possível salvar o encerramento. Os dados do voo foram mantidos e o encerramento será concluído na próxima abertura.'
+    const SUCESSO_ENCERRAMENTO = 'Sessão encerrada. Dados salvos.'
+
+    function notificacao(texto: string): HTMLElement | undefined {
+      return screen.queryAllByRole('status').find((el) => el.textContent === texto)
+    }
+
+    it('deve exibir a notificação de sucesso com a cor de sucesso quando a sessão é encerrada', async () => {
+      const sessao = makeSessao()
+      const fake = createFakeApi({ sessao })
+      await renderApp(fake)
+
+      fake.emitSessionEnded(encerrar(sessao))
+
+      const aviso = notificacao(SUCESSO_ENCERRAMENTO)
+      expect(aviso).toBeDefined()
+      expect(aviso!.getAttribute('style')).toContain('var(--color-success)')
+      expect(screen.queryByText(ERRO_ENCERRAMENTO)).not.toBeInTheDocument()
+    })
+
+    it('deve exibir a notificação de erro, com a cor de erro, quando a gravação do encerramento falha', async () => {
+      const sessao = makeSessao()
+      const fake = createFakeApi({ sessao })
+      await renderApp(fake)
+
+      fake.emitSessionEndFailed(sessao)
+
+      const aviso = notificacao(ERRO_ENCERRAMENTO)
+      expect(aviso).toBeDefined()
+      expect(aviso!.getAttribute('style')).toContain('var(--color-error)')
+      expect(screen.queryByText(SUCESSO_ENCERRAMENTO)).not.toBeInTheDocument()
+    })
+
+    it('deve tratar o painel como encerrado quando a gravação falha: valores congelados, aviso e "Encerrada"', async () => {
+      const sessao = makeSessao()
+      const fake = createFakeApi({ sessao, conexao: 'conectado' })
+      await renderApp(fake)
+      fake.emitReadings(pacote('sess-1', 4500))
+
+      // O main envia a sessão como estava na memória (ainda "ativa").
+      fake.emitSessionEndFailed(sessao)
+
+      expect(avisoSessaoEncerrada()).not.toBeNull()
+      expect(within(grupoDe('Altitude MSL')).getByText('4.500')).toBeInTheDocument()
+      expect(within(statusBar()).getByText('Encerrada')).toBeInTheDocument()
+      expect(within(statusBar()).queryByText('Sessão ativa')).not.toBeInTheDocument()
+
+      fake.emitReadings(pacote('sess-1', 9000))
+      expect(within(grupoDe('Altitude MSL')).getByText('4.500')).toBeInTheDocument()
+    })
+
+    it('deve abrir o painel da nova sessão quando o motor é religado depois da falha', async () => {
+      const sessao = makeSessao()
+      const fake = createFakeApi({ sessao })
+      await renderApp(fake)
+      fake.emitReadings(pacote('sess-1', 4500))
+      fake.emitSessionEndFailed(sessao)
+
+      fake.emitSessionStarted(makeSessao({ id: 'sess-2' }))
+
+      expect(avisoSessaoEncerrada()).toBeNull()
+      expect(within(statusBar()).getByText('Sessão ativa')).toBeInTheDocument()
+      fake.emitReadings(pacote('sess-2', 1200))
+      expect(within(grupoDe('Altitude MSL')).getByText('1.200')).toBeInTheDocument()
+    })
+
+    it('deve abrir com a orientação, sem notificação, quando o main não tem sessão ativa (sessão em verificação ou encerrada na abertura)', async () => {
+      await renderApp(createFakeApi({ sessao: null }))
+
+      expect(screen.getByText(ORIENTACAO)).toBeInTheDocument()
+      expect(screen.queryAllByRole('status')).toHaveLength(0)
+    })
+
+    it('deve exibir "Coleta iniciada" quando a sessão restaurada é confirmada pelo motor', async () => {
+      const fake = createFakeApi({ sessao: null })
+      await renderApp(fake)
+
+      fake.emitSessionStarted(makeSessao({ id: 'restaurada' }))
+
+      expect(notificacao('Coleta iniciada')).toBeDefined()
+      expect(rotulosDoPainel()).toEqual(ORDEM_ROTULOS)
+    })
+
+    it('deve exibir o texto exato de erro do encerramento, com tipo error, e nenhuma outra notificação', async () => {
+      const sessao = makeSessao()
+      const fake = createFakeApi({ sessao })
+      await renderApp(fake)
+
+      fake.emitSessionEndFailed(sessao)
+
+      const avisos = screen.queryAllByRole('status').filter((el) => el.getAttribute('aria-live') === 'polite')
+      const aviso = avisos.find((el) => el.textContent === ERRO_ENCERRAMENTO)
+      expect(aviso).toBeDefined()
+      expect(aviso!.textContent).toBe(
+        'Não foi possível salvar o encerramento. Os dados do voo foram mantidos e o encerramento será concluído na próxima abertura.',
+      )
+      expect(aviso!.getAttribute('style')).toContain('var(--color-error)')
+      expect(screen.queryByText('Não foi possível salvar o encerramento da sessão.')).not.toBeInTheDocument()
+    })
+  })
+
+  // ---------- notificação: 4 s completos a cada notificação nova ----------
+
+  describe('notificação: tempo de 4 s reinicia a cada notificação nova', () => {
+    const SUCESSO_ENCERRAMENTO = 'Sessão encerrada. Dados salvos.'
+    const ERRO_ENCERRAMENTO =
+      'Não foi possível salvar o encerramento. Os dados do voo foram mantidos e o encerramento será concluído na próxima abertura.'
+
+    function notificacao(texto: string): HTMLElement | undefined {
+      return screen.queryAllByRole('status').find((el) => el.textContent === texto)
+    }
+
+    function avancar(ms: number): void {
+      act(() => {
+        vi.advanceTimersByTime(ms)
+      })
+    }
+
+    it('deve manter uma notificação isolada por 4 s e tirá-la depois', async () => {
+      vi.useFakeTimers()
+      const sessao = makeSessao()
+      const fake = createFakeApi({ sessao })
+      await renderApp(fake)
+
+      fake.emitSessionEnded(encerrar(sessao))
+      avancar(3999)
+      expect(notificacao(SUCESSO_ENCERRAMENTO)).toBeDefined()
+      avancar(1)
+      expect(notificacao(SUCESSO_ENCERRAMENTO)).toBeUndefined()
+    })
+
+    it('deve manter por 4 s completos uma notificação que substitui outra aos 3 s', async () => {
+      vi.useFakeTimers()
+      const sessao = makeSessao()
+      const fake = createFakeApi({ sessao })
+      await renderApp(fake)
+
+      fake.emitSessionEndFailed(sessao)
+      avancar(3000)
+      fake.emitSessionStarted(makeSessao({ id: 'sess-2' }))
+      expect(notificacao(ERRO_ENCERRAMENTO)).toBeUndefined()
+      expect(notificacao('Coleta iniciada')).toBeDefined()
+
+      // Os 1 s que restavam da anterior não tiram a nova.
+      avancar(1000)
+      expect(notificacao('Coleta iniciada')).toBeDefined()
+      avancar(2999)
+      expect(notificacao('Coleta iniciada')).toBeDefined()
+      avancar(1)
+      expect(notificacao('Coleta iniciada')).toBeUndefined()
+    })
+
+    it('deve reiniciar os 4 s quando a mesma mensagem se repete antes de sumir', async () => {
+      vi.useFakeTimers()
+      const fake = createFakeApi({ sessao: null })
+      await renderApp(fake)
+
+      fake.emitSessionStarted(makeSessao({ id: 'sess-1' }))
+      avancar(3000)
+      fake.emitSessionStarted(makeSessao({ id: 'sess-2' }))
+      expect(screen.queryAllByRole('status').filter((el) => el.textContent === 'Coleta iniciada')).toHaveLength(1)
+
+      avancar(1000)
+      expect(notificacao('Coleta iniciada')).toBeDefined()
+      avancar(2999)
+      expect(notificacao('Coleta iniciada')).toBeDefined()
+      avancar(1)
+      expect(notificacao('Coleta iniciada')).toBeUndefined()
+    })
+
+    it('deve reiniciar os 4 s quando a mesma mensagem de erro se repete', async () => {
+      vi.useFakeTimers()
+      const sessao = makeSessao()
+      const fake = createFakeApi({ sessao })
+      await renderApp(fake)
+
+      fake.emitSessionEndFailed(sessao)
+      avancar(3500)
+      fake.emitSessionEndFailed(sessao)
+
+      avancar(500)
+      expect(notificacao(ERRO_ENCERRAMENTO)).toBeDefined()
+      avancar(3499)
+      expect(notificacao(ERRO_ENCERRAMENTO)).toBeDefined()
+      avancar(1)
+      expect(notificacao(ERRO_ENCERRAMENTO)).toBeUndefined()
+    })
+
+    it('UC-003: deve manter "Coleta iniciada" por 4 s quando o motor é religado 1 s depois do encerramento', async () => {
+      vi.useFakeTimers()
+      const sessao = makeSessao()
+      const fake = createFakeApi({ sessao })
+      await renderApp(fake)
+
+      fake.emitSessionEnded(encerrar(sessao))
+      expect(notificacao(SUCESSO_ENCERRAMENTO)).toBeDefined()
+
+      avancar(1000)
+      fake.emitSessionStarted(makeSessao({ id: 'sess-2' }))
+      expect(notificacao(SUCESSO_ENCERRAMENTO)).toBeUndefined()
+      expect(notificacao('Coleta iniciada')).toBeDefined()
+
+      // Aos 4 s do encerramento (3 s depois do religamento), ainda visível.
+      avancar(3000)
+      expect(notificacao('Coleta iniciada')).toBeDefined()
+      avancar(999)
+      expect(notificacao('Coleta iniciada')).toBeDefined()
+      avancar(1)
+      expect(notificacao('Coleta iniciada')).toBeUndefined()
     })
   })
 })

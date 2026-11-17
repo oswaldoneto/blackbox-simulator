@@ -4,7 +4,7 @@ import { useNotification } from './hooks/use-notification'
 import { useConnectionState } from './hooks/use-connection-state'
 import { useActiveParameters } from './hooks/use-active-parameters'
 import { useLiveReadings } from './hooks/use-live-readings'
-import { onSessionStarted, onSessionEnded } from './ipc/session-ipc'
+import { onSessionStarted, onSessionEnded, onSessionEndFailed } from './ipc/session-ipc'
 import { StatusBar } from './components/StatusBar'
 import { Notification } from './components/Notification'
 import { RealtimePanel } from './components/realtime-panel'
@@ -31,6 +31,12 @@ export function App(): React.ReactElement {
     })
   }, [showNotification])
 
+  useEffect(() => {
+    return onSessionEndFailed(() => {
+      showNotification('Não foi possível salvar o encerramento. Os dados do voo foram mantidos e o encerramento será concluído na próxima abertura.', 'error')
+    })
+  }, [showNotification])
+
   const contentStyle: React.CSSProperties = {
     padding: '64px 16px 16px',
   }
@@ -40,6 +46,7 @@ export function App(): React.ReactElement {
       <StatusBar sessaoAtiva={sessaoAtiva} conexao={conexao} />
       {notification !== null && (
         <Notification
+          key={notification.id}
           message={notification.message}
           type={notification.type}
           onClose={clearNotification}

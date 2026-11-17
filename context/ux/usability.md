@@ -3,7 +3,7 @@
 > Propósito: Diretrizes de usabilidade e acessibilidade.
 > Atualizar quando: uma diretriz mudar ou um teste com usuários trouxer um aprendizado.
 > Relacionados: [../product/product.md](../product/product.md)
-> Última atualização: 2026-11-17 · loop-003
+> Última atualização: 2026-11-17 · loop-004
 
 ## Princípios
 
@@ -25,7 +25,8 @@
 
 - Cada indicador de parâmetro é um grupo (`role="group"`) com `aria-label` em texto, no formato "<rótulo>: <valor> <unidade>", "<rótulo>: sem sinal" ou, para parâmetro que a aeronave não possui, "<rótulo>: não aplicável" (loop-003). A precedência é a mesma do card: não aplicável, depois sem sinal, depois valor.
 - Os indicadores não têm `aria-live`: a atualização a cada segundo não é anunciada, para não sobrecarregar o leitor de tela.
-- O encerramento da sessão é anunciado uma única vez, pela notificação "Sessão encerrada. Dados salvos."; o aviso "Sessão encerrada" do painel não tem `role="status"`.
+- O encerramento da sessão é anunciado uma única vez, pela notificação "Sessão encerrada. Dados salvos."; o aviso "Sessão encerrada" do painel não tem `role="status"`. Na falha ao gravar o encerramento (loop-004), quem anuncia é a notificação de erro.
+- A notificação de sistema, inclusive a de erro, usa `role="status"` e `aria-live="polite"`.
 - O aviso "Sem sinal do simulador" tem `role="status"`, para ser anunciado.
 
 Débitos de acessibilidade (revisão do loop-002, sem decisão):
@@ -33,12 +34,30 @@ Débitos de acessibilidade (revisão do loop-002, sem decisão):
 - O indicador de estado da barra usa `aria-label` em `<div>` sem role e sem região viva; a perda de conexão não é anunciada.
 - Os cards podem ser lidos em dobro (`aria-label` do grupo e texto interno).
 
+Débitos de acessibilidade (revisão do loop-004; decisão do HITL-3: débito para um loop de UX do painel):
+- A notificação de erro usa `role="status"`/`aria-live="polite"`; o usual para erro seria `role="alert"`.
+- Cada notificação nova é remontada (para reiniciar os 4 s) já com o texto; isso estende o risco de não anúncio, descrito acima, à notificação que substitui outra.
+
 ## Feedback e mensagens de erro
 
 - Toda operação que leva mais de 500 ms mostra um indicador de carregamento.
 - Quando a sessão inicia automaticamente, o sistema exibe uma notificação discreta confirmando o início da coleta.
-- Quando a sessão encerra automaticamente, o sistema exibe uma notificação de sucesso confirmando o encerramento: "Sessão encerrada. Dados salvos." A notificação usa o tipo `success` e desaparece em 4 segundos.
+- Quando a sessão encerra automaticamente, o sistema exibe uma notificação de sucesso confirmando o encerramento: "Sessão encerrada. Dados salvos." A notificação usa o tipo `success`, só aparece depois de o encerramento ser gravado e desaparece em 4 segundos.
 - Mensagens de erro descrevem o que aconteceu e o que o piloto pode fazer. Exemplo: "Não foi possível conectar ao simulador. Verifique se o Microsoft Flight Simulator 2024 está em execução."
+
+### Encerramento da sessão (UC-003)
+
+| Situação | Notificação | Tipo |
+|---|---|---|
+| Encerramento gravado | "Sessão encerrada. Dados salvos." | `success` |
+| Falha ao gravar o encerramento | "Não foi possível salvar o encerramento. Os dados do voo foram mantidos e o encerramento será concluído na próxima abertura." | `error` |
+| Sessão restaurada confirmada na abertura (motor ligado) | "Coleta iniciada" | `success` |
+| Sessão encerrada na abertura do app | sem notificação (silencioso) | — |
+| Falha ao gravar o encerramento feito na abertura | sem notificação; só log (a próxima abertura tenta de novo) | — |
+
+- Exceção decidida à diretriz de mensagens de erro (HITL-3 do loop-004): o texto de erro do encerramento não pede ação ao piloto; em vez disso, diz que os dados do voo foram mantidos e que o encerramento será concluído na próxima abertura.
+- Toda notificação nova fica 4 s completos na tela, mesmo que substitua outra ou repita o texto.
+- Débito (HITL-3 do loop-004): "próxima abertura" pode não deixar claro que é a abertura do app. Os demais débitos de leitura da notificação de erro estão em [design.md](design.md), "Em aberto e débitos de UX".
 - Estados vazios (ex.: nenhum voo registrado) explicam o motivo e orientam o próximo passo. Exemplo: "Nenhum voo registrado. Inicie o simulador e ligue o motor para começar."
 
 ### Painel de tempo real (UC-002)

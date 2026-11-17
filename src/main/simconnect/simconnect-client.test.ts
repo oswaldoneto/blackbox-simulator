@@ -425,7 +425,8 @@ describe('SimConnectClient', () => {
     it('deve pedir os dados com período de 1 s (SimConnectPeriod.SECOND)', async () => {
       const client = new SimConnectClient()
       client.connect([makeParametro()])
-      await vi.waitFor(() => expect(mockRequestDataOnSimObject).toHaveBeenCalledTimes(2))
+      // Motor, parâmetros e solo (UC-003).
+      await vi.waitFor(() => expect(mockRequestDataOnSimObject).toHaveBeenCalledTimes(3))
 
       mockRequestDataOnSimObject.mock.calls.forEach((c) => expect(c[3]).toBe(2))
       client.close()
@@ -634,6 +635,173 @@ describe('SimConnectClient', () => {
       const handler = getHandleListener('simObjectData') as SimObjectDataHandler
       handler({ requestID: 0, data: bufferMotor(1, 0, 1) })
       handler({ requestID: 1, data: fakeBuffer([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) })
+
+      expect(mockTransmitClientEvent).not.toHaveBeenCalled()
+      expect(mockSetDataOnSimObject).not.toHaveBeenCalled()
+      expect(mockMapClientEventToSimEvent).not.toHaveBeenCalled()
+      client.close()
+    })
+  })
+
+  // --- UC-003: amostras do motor e do solo para o encerramento ---
+
+  describe('UC-003', () => {
+    const DEF_ID_GROUND = 2
+    const REQ_ID_GROUND = 2
+
+    function bufferMotor(combustao: number): { readInt32: () => number; readFloat64: () => number } {
+      const valores = [combustao, 0, 1]
+      let i = 0
+      return { readInt32: () => valores[i++], readFloat64: () => 0 }
+    }
+
+    function bufferSolo(noSolo: number): { readInt32: () => number; readFloat64: () => number } {
+      return { readInt32: vi.fn(() => noSolo), readFloat64: vi.fn(() => 0) }
+    }
+
+    async function conectar(client: SimConnectClient): Promise<SimObjectDataHandler> {
+      client.connect(SEIS_PARAMETROS)
+      await vi.waitFor(() => expect(mockRequestDataOnSimObject).toHaveBeenCalledTimes(3))
+      return getHandleListener('simObjectData') as SimObjectDataHandler
+    }
+
+    it('deve registrar SIM ON GROUND numa definição própria, Bool e INT32', async () => {
+      const client = new SimConnectClient()
+      await conectar(client)
+
+      const solo = mockAddToDataDefinition.mock.calls.filter((c) => c[0] === DEF_ID_GROUND)
+      expect(solo).toEqual([[DEF_ID_GROUND, 'SIM ON GROUND', 'Bool', 0]])
+      // A SimVar de solo não entra nas definições do motor nem dos parâmetros.
+      const outras = mockAddToDataDefinition.mock.calls.filter((c) => c[0] !== DEF_ID_GROUND)
+      expect(outras.map((c) => c[1])).not.toContain('SIM ON GROUND')
+      client.close()
+    })
+
+    it('deve manter a definição do motor inalterada (combustão, ENGINE TYPE, FLAPS AVAILABLE)', async () => {
+      const client = new SimConnectClient()
+      await conectar(client)
+
+      const motor = mockAddToDataDefinition.mock.calls.filter((c) => c[0] === 0).map((c) => c[1])
+      expect(motor).toEqual(['ENG COMBUSTION:1', 'ENGINE TYPE', 'FLAPS AVAILABLE'])
+      client.close()
+    })
+
+    it('deve pedir o solo ao objeto do usuário a cada 1 s (SimConnectPeriod.SECOND)', async () => {
+      const client = new SimConnectClient()
+      await conectar(client)
+
+      const pedido = mockRequestDataOnSimObject.mock.calls.find((c) => c[1] === DEF_ID_GROUND)
+      expect(pedido).toEqual([REQ_ID_GROUND, DEF_ID_GROUND, 1, 2])
+      client.close()
+    })
+
+    it.each<[number, boolean]>([
+      [1, true],
+      [0, false],
+    ])('deve entregar onGroundSample com noSolo para SIM ON GROUND = %i', async (valor, noSolo) => {
+      const spy = vi.fn()
+      const client = new SimConnectClient()
+      client.onGroundSample(spy)
+      const handler = await conectar(client)
+
+      handler({ requestID: REQ_ID_GROUND, data: bufferSolo(valor) })
+
+      expect(spy).toHaveBeenCalledOnce()
+      const amostra = spy.mock.calls[0][0] as { noSolo: boolean; timestamp: string }
+      expect(amostra.noSolo).toBe(noSolo)
+      expect(Number.isNaN(Date.parse(amostra.timestamp))).toBe(false)
+      client.close()
+    })
+
+    it('não deve gerar lote, leitura nem amostra do motor com o pacote do solo', async () => {
+      const batch = vi.fn()
+      const reading = vi.fn()
+      const motor = vi.fn()
+      const client = new SimConnectClient()
+      client.onParameterBatch(batch)
+      client.onParameterReading(reading)
+      client.onEngineSample(motor)
+      const handler = await conectar(client)
+
+      const buffer = bufferSolo(1)
+      handler({ requestID: REQ_ID_GROUND, data: buffer })
+
+      expect(batch).not.toHaveBeenCalled()
+      expect(reading).not.toHaveBeenCalled()
+      expect(motor).not.toHaveBeenCalled()
+      expect(buffer.readFloat64).not.toHaveBeenCalled()
+      client.close()
+    })
+
+    it('não deve gerar amostra do solo com os pacotes do motor e dos parâmetros', async () => {
+      const solo = vi.fn()
+      const client = new SimConnectClient()
+      client.onGroundSample(solo)
+      const handler = await conectar(client)
+
+      handler({ requestID: 0, data: bufferMotor(1) })
+      handler({ requestID: 1, data: fakeBuffer([1, 2, 3, 4, 5, 6]) })
+
+      expect(solo).not.toHaveBeenCalled()
+      client.close()
+    })
+
+    it('deve entregar onEngineSample a cada pacote do motor, ligado ou parado', async () => {
+      const spy = vi.fn()
+      const client = new SimConnectClient()
+      client.onEngineSample(spy)
+      const handler = await conectar(client)
+
+      handler({ requestID: 0, data: bufferMotor(1) })
+      handler({ requestID: 0, data: bufferMotor(1) })
+      handler({ requestID: 0, data: bufferMotor(0) })
+
+      expect(spy.mock.calls.map((c) => (c[0] as { combustao: boolean }).combustao)).toEqual([
+        true,
+        true,
+        false,
+      ])
+      spy.mock.calls.forEach((c) =>
+        expect(Number.isNaN(Date.parse((c[0] as { timestamp: string }).timestamp))).toBe(false)
+      )
+      client.close()
+    })
+
+    it('deve entregar onEngineSample depois de onEngineStarted na partida', async () => {
+      const ordem: string[] = []
+      const client = new SimConnectClient()
+      client.onEngineSample(() => ordem.push('amostra'))
+      client.onEngineStarted(() => ordem.push('partida'))
+      const handler = await conectar(client)
+
+      handler({ requestID: 0, data: bufferMotor(1) })
+
+      expect(ordem).toEqual(['partida', 'amostra'])
+      client.close()
+    })
+
+    it('deve avisar nova partida quando o motor volta depois de parar', async () => {
+      const spy = vi.fn()
+      const client = new SimConnectClient()
+      client.onEngineStarted(spy)
+      const handler = await conectar(client)
+
+      handler({ requestID: 0, data: bufferMotor(1) })
+      handler({ requestID: 0, data: bufferMotor(0) })
+      handler({ requestID: 0, data: bufferMotor(1) })
+
+      expect(spy).toHaveBeenCalledTimes(2)
+      client.close()
+    })
+
+    it('não deve enviar eventos nem dados ao simulador com a definição de solo (RN-006)', async () => {
+      const client = new SimConnectClient()
+      client.onGroundSample(vi.fn())
+      client.onEngineSample(vi.fn())
+      const handler = await conectar(client)
+
+      handler({ requestID: 0, data: bufferMotor(0) })
+      handler({ requestID: REQ_ID_GROUND, data: bufferSolo(1) })
 
       expect(mockTransmitClientEvent).not.toHaveBeenCalled()
       expect(mockSetDataOnSimObject).not.toHaveBeenCalled()

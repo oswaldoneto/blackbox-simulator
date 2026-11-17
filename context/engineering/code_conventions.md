@@ -3,7 +3,7 @@
 > Propósito: Convenções que os agentes de código devem seguir.
 > Atualizar quando: uma convenção for criada ou mudar, inclusive por uma lição aprendida.
 > Relacionados: [architecture.md](architecture.md)
-> Última atualização: 2026-11-17 · loop-003
+> Última atualização: 2026-11-17 · loop-004
 
 ## Linguagem e estilo
 
@@ -69,7 +69,13 @@ src/
 - Como rodar: `npm test` (Vitest) e `npm run test:e2e` (Playwright).
 - Cobertura mínima: toda função em `main/db/` e `main/simconnect/` precisa ter ao menos um teste unitário.
 - SQL real nos testes: o `better-sqlite3` é recompilado para o Node do Electron (`postinstall`) e não carrega no Vitest. Para testar SQL de verdade (migrations), usar o SQLite nativo do Node (`node:sqlite`, aprovado no HITL-1 do loop-003), embrulhado na parte da API do better-sqlite3 que o código usa (`exec`, `prepare`, `transaction`), como em `src/main/db/migrator-sqlite.test.ts` (banco novo, banco do loop-002 com dados, reexecução e falha desfeita). O teste com mocks (`migrator.test.ts`) continua cobrindo o fluxo do migrator.
+  Desde o loop-004, `src/main/db/session-repository-sqlite.test.ts` é o padrão para testar repositórios com SQL real: cobre `encerrarSessao`, `buscarSessaoAtiva`, `buscarUltimaLeituraEm` e a rotina de sessões antigas (idempotente, sobre um banco do loop-003). Testes de SQL real de outros repositórios podem ficar nesse arquivo enquanto o adaptador não vira helper (decisão do HITL-2 do loop-004). Para conferir o uso de um índice, usar `EXPLAIN QUERY PLAN`, como no teste da migration 003.
 - Débito (loop-003): `tsconfig.main.json` compila os testes junto com o main. Uma mudança de tipo quebra o `npm run build` até os testes serem atualizados, e os testes (inclusive `migrator-sqlite.test.ts`) vão para `dist/main`.
+- Débito (loop-004, HITL-2): o adaptador de `node:sqlite` está duplicado em `migrator-sqlite.test.ts` e `session-repository-sqlite.test.ts`. Um helper compartilhado iria para `dist/main` por causa do débito acima; vira helper quando os testes saírem do build.
+- Tempo nos testes (loop-004):
+  - Lógica medida pelo tempo das amostras (como o detector de encerramento) é uma função pura que recebe instantes explícitos (`timestamp` ISO 8601) em cada evento, sem timer nem `Date.now()` interno. Os testes passam os instantes à mão (ex.: 14 s não encerra, 15 s encerra), como em `detector-de-encerramento.test.ts`.
+  - Prazos de relógio (`setTimeout`, como `VERIFICACAO_ABERTURA_MS` no `CollectionService` e os 4 s da notificação no renderer) são testados com fake timers do Vitest (`vi.useFakeTimers()` e avanço explícito do relógio).
+- `src/main/index.ts` não tem teste automatizado: a chamada da rotina de sessões antigas e a ligação dos eventos de encerramento e falha ao IPC são conferidas no roteiro manual no Windows (loop-004).
 
 ## Commits
 
@@ -124,13 +130,22 @@ Exemplos:
 Implementado no loop-003 (`src/main/db/migrator.ts`):
 
 - Controle de versão na tabela `schema_migrations` (`versao` TEXT PK com o nome do arquivo, `aplicada_em` em ISO 8601), criada pelo próprio migrator se não existir.
-- Migrations são arquivos `NNN-nome.sql` em `src/main/db/migrations/`, com prefixo de 3 dígitos (ex.: `001-initial.sql`, `002-ampliar-parametros.sql`). A ordem de aplicação é a ordem lexicográfica do nome (`.sort()`), por isso o prefixo precisa ter sempre 3 dígitos.
+- Migrations são arquivos `NNN-nome.sql` em `src/main/db/migrations/`, com prefixo de 3 dígitos (ex.: `001-initial.sql`, `002-ampliar-parametros.sql`, `003-indice-leituras.sql`). A ordem de aplicação é a ordem lexicográfica do nome (`.sort()`), por isso o prefixo precisa ter sempre 3 dígitos.
 - Só as migrations ainda não registradas são aplicadas. Cada uma roda numa transação junto com o seu registro em `schema_migrations`: se falhar, nada dela fica gravado e ela volta a rodar na próxima inicialização.
 - Bancos anteriores ao controle de versão rodam a 001 de novo; por isso a 001 é idempotente (`CREATE TABLE IF NOT EXISTS`, `INSERT OR IGNORE`). Seeds de catálogo usam `INSERT OR IGNORE`.
 - Uma falha loga `[Migrator] Falha ao aplicar a migration <arquivo>` e relança o erro, o que interrompe a inicialização do app. Débito aceito no HITL-2 do loop-003: o piloto não vê mensagem, só o log.
 - O build copia `src/main/db/migrations` para `dist/main/main/db/migrations` (ver "Build e execução").
+- Migrations existentes: 001 (tabelas e 6 parâmetros), 002 (6 parâmetros novos e `parametros_nao_aplicaveis`), 003 (loop-004: índice `idx_leituras_sessao_timestamp` em `leituras_de_parametro (sessao_id, timestamp)`, com `CREATE INDEX IF NOT EXISTS`).
+- Saneamento de dados que precisa rodar a cada abertura não vai em migration (que roda uma vez só): vira função de repositório chamada em `index.ts` logo depois de `runMigrations()` e antes de criar o `CollectionService`. A rotina precisa ser idempotente, e uma falha nela só gera log, sem impedir o app de abrir. Exemplo: `encerrarSessoesAtivasAnteriores` (loop-004, ADR-009 em architecture.md), escolhida no HITL-1 no lugar de uma migration porque repara também as sessões que ficam ativas por falha ao gravar o encerramento.
 
 ## Em aberto
+
+Levantado na revisão do loop-004 (3.2); débitos não bloqueantes, aguardam decisão humana.
+
+- `session-repository-sqlite.test.ts` repete os `require` com `eslint-disable` de `migrator-sqlite.test.ts` (mesmo item do loop-003 abaixo).
+- `ESTADO_INICIAL_DETECTOR` (`detector-de-encerramento.ts`) é um objeto mutável exportado; a 3.2 sugeriu `Readonly`/`Object.freeze`. Decidir se constantes de objeto exportadas passam a ser congeladas.
+- Comentários em inglês em `simconnect-client.ts` (ex.: "Ground definition: ...") destoam dos comentários em português do resto do código; não há convenção escrita sobre o idioma dos comentários.
+- 4 guardas defensivas sem teste em `collection-service.ts` (inalcançáveis hoje).
 
 Levantado na revisão do loop-003 (3.2 e 3.4); aguarda decisão humana.
 

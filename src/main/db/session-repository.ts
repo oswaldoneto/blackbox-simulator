@@ -86,11 +86,73 @@ export function criarSessao(dados: Omit<Sessao, 'id'>): Sessao {
   return { id, ...dados }
 }
 
+/** Sessão ativa mais recente (por `iniciada_em`, depois pela ordem de inserção). */
 export function buscarSessaoAtiva(): Sessao | null {
   const db = getDatabase()
   const row = db
-    .prepare(`SELECT * FROM sessoes WHERE status = 'ativa' LIMIT 1`)
+    .prepare(
+      `SELECT * FROM sessoes
+       WHERE status = 'ativa'
+       ORDER BY iniciada_em DESC, rowid DESC
+       LIMIT 1`
+    )
     .get() as SessaoRow | undefined
 
   return row ? rowToSessao(row) : null
+}
+
+/**
+ * Encerra uma sessão ativa: grava `encerrada_em` e o status `encerrada` (UC-003).
+ * Só muda sessão ativa; lança erro se nenhuma linha mudar (sessão inexistente ou já
+ * encerrada). Devolve a sessão como ficou gravada.
+ */
+export function encerrarSessao(id: string, encerradaEm: string): Sessao {
+  const db = getDatabase()
+  const resultado = db
+    .prepare(
+      `UPDATE sessoes
+       SET status = 'encerrada', encerrada_em = @encerradaEm
+       WHERE id = @id AND status = 'ativa'`
+    )
+    .run({ id, encerradaEm })
+
+  if (resultado.changes !== 1) {
+    throw new Error(`Sessão ${id} não encontrada ou já encerrada`)
+  }
+
+  const row = db.prepare(`SELECT * FROM sessoes WHERE id = @id`).get({ id }) as
+    | SessaoRow
+    | undefined
+  if (row === undefined) {
+    throw new Error(`Sessão ${id} não encontrada depois do encerramento`)
+  }
+  return rowToSessao(row)
+}
+
+/**
+ * Encerra toda sessão ativa exceto a mais recente, que fica para a verificação na
+ * abertura do app (UC-003). Repara as sessões sem encerramento das versões v0.1.0 a
+ * v0.3.0 e as que ficaram ativas por falha ao gravar o encerramento. A hora de fim é a
+ * última leitura da sessão ou, sem leitura, a hora de início (duração 0).
+ * Roda a cada abertura, numa transação. Devolve quantas sessões foram encerradas.
+ */
+export function encerrarSessoesAtivasAnteriores(): number {
+  const db = getDatabase()
+  const encerrar = db.prepare(
+    `UPDATE sessoes
+     SET status = 'encerrada',
+         encerrada_em = COALESCE(
+           (SELECT MAX(l.timestamp) FROM leituras_de_parametro l WHERE l.sessao_id = sessoes.id),
+           sessoes.iniciada_em
+         )
+     WHERE status = 'ativa'
+       AND id <> (
+         SELECT id FROM sessoes
+         WHERE status = 'ativa'
+         ORDER BY iniciada_em DESC, rowid DESC
+         LIMIT 1
+       )`
+  )
+  const executar = db.transaction((): number => encerrar.run().changes)
+  return executar()
 }

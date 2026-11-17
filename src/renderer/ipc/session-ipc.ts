@@ -11,3 +11,7 @@ export function onSessionStarted(callback: (sessao: Sessao) => void): () => void
 export function onSessionEnded(callback: (sessao: Sessao) => void): () => void {
   return window.electronApi.onSessionEnded(callback)
 }
+
+export function onSessionEndFailed(callback: (sessao: Sessao) => void): () => void {
+  return window.electronApi.onSessionEndFailed(callback)
+}

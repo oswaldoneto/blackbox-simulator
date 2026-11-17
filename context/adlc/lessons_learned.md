@@ -3,7 +3,7 @@
 > Propósito: O que cada loop ensinou, e onde a lição foi aplicada no contexto.
 > Atualizar quando: no final de cada loop.
 > Relacionados: [loop_report.md](loop_report.md)
-> Última atualização: 2026-11-17 · loop-003
+> Última atualização: 2026-11-17 · loop-004
 
 ## Lições
 
@@ -111,6 +111,34 @@ Loop: loop-003
 O que aconteceu: A revisão de usabilidade apontou que Manete, Mistura e RPM não indicam o motor lido. No HITL-3, o humano decidiu que o produto suporta, por enquanto, só aeronaves de um motor: os rótulos ficaram sem o motor e o CA-006-3 (motor 1 em multimotor) deixou de ser critério.
 Lição: Uma decisão de escopo pode resolver um achado de revisão com menos trabalho que uma mudança de interface. Ela também pode chegar no meio do loop; quando chega, precisa ser propagada ao produto (product.md, UC) e ao roteiro manual na fase Documentar. Perguntar o escopo (como "multimotor entra?") já na 1.1 evitaria a decisão tardia.
 Onde foi aplicada: loop-003, decisões do HITL-3; product.md e UC-006 na 4.1.
+
+LL-016
+Data: 2026-11-17
+Loop: loop-004
+O que aconteceu: Como no loop-002, a revisão não teve bloqueantes, mas encontrou itens de tela pequenos (mensagem de erro do encerramento e tempo da notificação), e o humano preferiu corrigi-los numa 2ª rodada curta, só com usabilidade. A 2ª rodada aprovou os ajustes, mas levantou 4 novos itens menores (tempo de leitura do erro, notificação mais alta sobre o card, anúncio da notificação remontada, "próxima abertura"), que foram para débito.
+Lição: Uma rodada curta sobre ajustes de tela tende a gerar novos achados menores sobre os próprios ajustes, e sem um critério de parada o loop pode girar em rodadas sucessivas. Vale definir um critério, por exemplo: no máximo uma rodada curta por loop, e o que ela levantar sem bloqueante vai direto para débito. O critério é decisão do humano e ainda não foi tomado.
+Onde foi aplicada: loop-004, decisões do HITL-3 (1ª e 2ª rodadas); regra registrada no HITL-4 em agent_development_lifecycle.md (HITL-3) e nas skills loop-review (.bob e .claude).
+
+LL-017
+Data: 2026-11-17
+Loop: loop-004
+O que aconteceu: Na 2ª rodada, o tester criou testes com fake timers para o reinício dos 4 s da notificação. O orquestrador removeu a correção (`key={notification.id}`) e 4 testes de `App.test.tsx` falharam; com a correção, todos passaram.
+Lição: Um teste de mutação simples (remover a correção e ver o teste falhar) é uma forma barata de confirmar que o teste pega o problema que motivou o ajuste, sobretudo em comportamentos com tempo, em que um teste pode passar por acaso.
+Onde foi aplicada: loop-004, etapa 2.2 da 2ª rodada.
+
+LL-018
+Data: 2026-11-17
+Loop: loop-004
+O que aconteceu: As decisões de comportamento com tempo (15 s de motor parado no solo, contagem mantida na queda de conexão, hora de fim no início do período) ficaram fáceis de testar porque o detector de encerramento foi feito como função pura medida pelos instantes das amostras, sem timer. Foram 26 testes com amostras e instantes explícitos. Só a verificação na abertura, que depende de um prazo sem amostras, precisou de fake timers.
+Lição: Regras de negócio com tempo devem ser medidas pelos instantes dos dados sempre que possível, numa função pura com o estado guardado fora dela. Isso deixa cada decisão do humano verificável por um caso de teste explícito e reserva timers só para o que depende da ausência de dados.
+Onde foi aplicada: loop-004, tarefa 2 da 1.2 e etapa 2.2; convenção a registrar em code_conventions.md (4.2).
+
+LL-019
+Data: 2026-11-17
+Loop: loop-004
+O que aconteceu: Durante uma pergunta com várias decisões, o humano respondeu parte delas por mensagem livre. Só as decisões respondidas foram registradas; as demais foram perguntadas de novo.
+Lição: Quando a resposta a uma pergunta múltipla chega parcial ou em texto livre, registrar só o que foi decidido de forma explícita e perguntar de novo o restante, em vez de inferir a escolha pelo padrão proposto.
+Onde foi aplicada: loop-004, registro das decisões dos HITL em loop_reports/loop-004.md.
 
 ## Modelo de lição
 

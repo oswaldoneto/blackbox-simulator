@@ -1,18 +1,24 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest'
 
 // ----- mocks (hoisted so vi.mock factories can reference them) -----
 type ReadingPayload = { parametroId: string; valor: number; timestamp: string }
 type BatchPayload = { timestamp: string; leituras: { parametroId: string; valor: number }[] }
 type EstadoConexaoMock = 'conectado' | 'desconectado'
+type AmostraMotor = { combustao: boolean; timestamp: string }
+type AmostraSolo = { noSolo: boolean; timestamp: string }
 
 const {
   mockCriarSessao,
   mockBuscarSessaoAtiva,
+  mockEncerrarSessao,
   mockInserirLeitura,
+  mockBuscarUltimaLeituraEm,
   mockBuscarParametrosAtivos,
   mockClientConnect,
   mockClientClose,
   mockClientOnEngineStarted,
+  mockClientOnEngineSample,
+  mockClientOnGroundSample,
   mockClientOnParameterReading,
   mockClientOnParameterBatch,
   mockClientOnConnectionChange,
@@ -20,11 +26,15 @@ const {
 } = vi.hoisted(() => ({
   mockCriarSessao: vi.fn(),
   mockBuscarSessaoAtiva: vi.fn(),
+  mockEncerrarSessao: vi.fn(),
   mockInserirLeitura: vi.fn(),
+  mockBuscarUltimaLeituraEm: vi.fn(),
   mockBuscarParametrosAtivos: vi.fn(),
   mockClientConnect: vi.fn(),
   mockClientClose: vi.fn(),
   mockClientOnEngineStarted: vi.fn(),
+  mockClientOnEngineSample: vi.fn(),
+  mockClientOnGroundSample: vi.fn(),
   mockClientOnParameterReading: vi.fn(),
   mockClientOnParameterBatch: vi.fn(),
   mockClientOnConnectionChange: vi.fn(),
@@ -33,6 +43,8 @@ const {
 
 // Callbacks registrados pelo serviço no client, recapturados a cada teste em beforeEach.
 let capturedEngineStartedCallbacks: ((perfil: PerfilDaAeronave) => void)[] = []
+let capturedEngineSampleCallbacks: ((a: AmostraMotor) => void)[] = []
+let capturedGroundSampleCallbacks: ((a: AmostraSolo) => void)[] = []
 let capturedParameterReadingCallbacks: ((p: ReadingPayload) => void)[] = []
 let capturedParameterBatchCallbacks: ((p: BatchPayload) => void)[] = []
 let capturedConnectionChangeCallbacks: ((estado: EstadoConexaoMock) => void)[] = []
@@ -40,6 +52,8 @@ let capturedConnectionChangeCallbacks: ((estado: EstadoConexaoMock) => void)[] =
 vi.mock('./simconnect-client', () => ({
   SimConnectClient: vi.fn().mockImplementation(() => ({
     onEngineStarted: mockClientOnEngineStarted,
+    onEngineSample: mockClientOnEngineSample,
+    onGroundSample: mockClientOnGroundSample,
     onParameterReading: mockClientOnParameterReading,
     onParameterBatch: mockClientOnParameterBatch,
     onConnectionChange: mockClientOnConnectionChange,
@@ -52,17 +66,19 @@ vi.mock('./simconnect-client', () => ({
 vi.mock('../db/session-repository', () => ({
   criarSessao: mockCriarSessao,
   buscarSessaoAtiva: mockBuscarSessaoAtiva,
+  encerrarSessao: mockEncerrarSessao,
 }))
 
 vi.mock('../db/reading-repository', () => ({
   inserirLeitura: mockInserirLeitura,
+  buscarUltimaLeituraEm: mockBuscarUltimaLeituraEm,
 }))
 
 vi.mock('../db/parameter-repository', () => ({
   buscarParametrosAtivos: mockBuscarParametrosAtivos,
 }))
 
-import { CollectionService } from './collection-service'
+import { CollectionService, VERIFICACAO_ABERTURA_MS } from './collection-service'
 import type { Sessao, ParametroDeVoo } from '../../shared/types'
 import type { PerfilDaAeronave } from './parametros-nao-aplicaveis'
 
@@ -85,9 +101,24 @@ function makeSessao(overrides: Partial<Sessao> = {}): Sessao {
 /** Aeronave com motor a pistão e flapes (ex.: Cessna 172): nada é N/A. */
 const PERFIL_PISTAO_COM_FLAPES: PerfilDaAeronave = { motorAPistao: true, temFlapes: true }
 
-/** Dispara o aviso de motor ligado com o perfil da aeronave. */
-function ligarMotor(perfil: PerfilDaAeronave = PERFIL_PISTAO_COM_FLAPES): void {
+/**
+ * Dispara o aviso de motor ligado com o perfil da aeronave e, como o client real, a
+ * amostra do motor ligado logo depois.
+ */
+function ligarMotor(
+  perfil: PerfilDaAeronave = PERFIL_PISTAO_COM_FLAPES,
+  timestamp = '2024-01-01T00:00:00.000Z'
+): void {
   capturedEngineStartedCallbacks.forEach((cb) => cb(perfil))
+  capturedEngineSampleCallbacks.forEach((cb) => cb({ combustao: true, timestamp }))
+}
+
+function amostraMotor(combustao: boolean, timestamp: string): void {
+  capturedEngineSampleCallbacks.forEach((cb) => cb({ combustao, timestamp }))
+}
+
+function amostraSolo(noSolo: boolean, timestamp: string): void {
+  capturedGroundSampleCallbacks.forEach((cb) => cb({ noSolo, timestamp }))
 }
 
 function makeParametro(overrides: Partial<ParametroDeVoo> = {}): ParametroDeVoo {
@@ -104,6 +135,8 @@ describe('CollectionService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     capturedEngineStartedCallbacks = []
+    capturedEngineSampleCallbacks = []
+    capturedGroundSampleCallbacks = []
     capturedParameterReadingCallbacks = []
     capturedParameterBatchCallbacks = []
     capturedConnectionChangeCallbacks = []
@@ -111,6 +144,12 @@ describe('CollectionService', () => {
     // Re-wire captured arrays after clearAllMocks resets the implementations
     mockClientOnEngineStarted.mockImplementation((cb: (perfil: PerfilDaAeronave) => void) => {
       capturedEngineStartedCallbacks.push(cb)
+    })
+    mockClientOnEngineSample.mockImplementation((cb: (a: AmostraMotor) => void) => {
+      capturedEngineSampleCallbacks.push(cb)
+    })
+    mockClientOnGroundSample.mockImplementation((cb: (a: AmostraSolo) => void) => {
+      capturedGroundSampleCallbacks.push(cb)
     })
     mockClientOnParameterReading.mockImplementation((cb: (p: ReadingPayload) => void) => {
       capturedParameterReadingCallbacks.push(cb)
@@ -124,6 +163,10 @@ describe('CollectionService', () => {
 
     mockBuscarParametrosAtivos.mockReturnValue([makeParametro()])
     mockBuscarSessaoAtiva.mockReturnValue(null)
+    mockBuscarUltimaLeituraEm.mockReturnValue(null)
+    mockEncerrarSessao.mockImplementation((id: string, encerradaEm: string) =>
+      makeSessao({ id, status: 'encerrada', encerradaEm })
+    )
     mockCriarSessao.mockImplementation((dados: Omit<Sessao, 'id'>) =>
       makeSessao({ ...dados, id: 'nova-sessao-1' })
     )
@@ -189,6 +232,8 @@ describe('CollectionService', () => {
 
     const service = new CollectionService()
     service.inicializar()
+    // A sessão restaurada só é retomada com a primeira amostra do motor ligado (UC-003).
+    ligarMotor()
 
     capturedParameterReadingCallbacks.forEach((cb) =>
       cb({ parametroId: 'altitude_msl', valor: 1000, timestamp: '2024-01-01T00:00:00.000Z' })
@@ -208,8 +253,10 @@ describe('CollectionService', () => {
     service.inicializar()
 
     ligarMotor()
+    ligarMotor()
 
     expect(mockCriarSessao).not.toHaveBeenCalled()
+    expect(service.getSessaoAtual()?.id).toBe('sessao-existente')
   })
 
   // --- onSessaoCriada callback ---
@@ -226,13 +273,23 @@ describe('CollectionService', () => {
     expect(spy.mock.calls[0][0].status).toBe('ativa')
   })
 
-  // --- encerrar ---
+  // --- fecharConexao ---
 
-  it('deve chamar client.close() ao encerrar', () => {
+  it('deve chamar client.close() ao fechar a conexão', () => {
     const service = new CollectionService()
     service.inicializar()
-    service.encerrar()
+    service.fecharConexao()
     expect(mockClientClose).toHaveBeenCalledOnce()
+  })
+
+  it('não deve encerrar a sessão ativa ao fechar a conexão (fechar o app)', () => {
+    const service = new CollectionService()
+    service.inicializar()
+    ligarMotor()
+
+    service.fecharConexao()
+
+    expect(mockEncerrarSessao).not.toHaveBeenCalled()
   })
 
   // --- UC-002: leituras em tempo real (CA-002-2) ---
@@ -281,6 +338,7 @@ describe('CollectionService', () => {
       const spy = vi.fn()
       service.onLeituras(spy)
       service.inicializar()
+      ligarMotor()
 
       capturedParameterBatchCallbacks.forEach((cb) => cb(lote))
 
@@ -482,6 +540,8 @@ describe('CollectionService', () => {
       const spy = vi.fn()
       service.onLeituras(spy)
       service.inicializar()
+      // Perfil de jato sem flapes: a confirmação ignora o perfil e usa a lista gravada.
+      ligarMotor({ motorAPistao: false, temFlapes: false })
 
       enviarLeiturasIndividuais(LOTE_DOZE)
       capturedParameterBatchCallbacks.forEach((cb) => cb(LOTE_DOZE))
@@ -511,6 +571,561 @@ describe('CollectionService', () => {
       expect(mockInserirLeitura).toHaveBeenCalledTimes(12)
       expect(idsGravados()).toEqual(expect.arrayContaining(['mixture_1', 'flaps']))
       expect((spyLeituras.mock.calls[0][0] as { leituras: unknown[] }).leituras).toHaveLength(12)
+    })
+  })
+
+  // --- UC-003: encerramento da sessão ---
+
+  describe('UC-003: encerramento', () => {
+    const T0 = Date.parse('2024-01-01T00:00:00.000Z')
+
+    /** Instante ISO a `s` segundos de T0. */
+    function em(s: number): string {
+      return new Date(T0 + s * 1000).toISOString()
+    }
+
+    /** Uma amostra de motor e uma de solo por segundo, de `de` até `ate` inclusive. */
+    function amostras(de: number, ate: number, combustao: boolean, noSolo: boolean): void {
+      for (let s = de; s <= ate; s++) {
+        amostraMotor(combustao, em(s))
+        amostraSolo(noSolo, em(s))
+      }
+    }
+
+    function enviarLeitura(valor: number, timestamp: string): void {
+      capturedParameterReadingCallbacks.forEach((cb) =>
+        cb({ parametroId: 'altitude_msl', valor, timestamp })
+      )
+    }
+
+    function enviarLote(timestamp: string): void {
+      capturedParameterBatchCallbacks.forEach((cb) =>
+        cb({ timestamp, leituras: [{ parametroId: 'altitude_msl', valor: 100 }] })
+      )
+    }
+
+    let consoleError: MockInstance<Parameters<typeof console.error>, void>
+
+    beforeEach(() => {
+      consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+      let n = 0
+      mockCriarSessao.mockImplementation((dados: Omit<Sessao, 'id'>) =>
+        makeSessao({ ...dados, id: `sessao-${++n}` })
+      )
+    })
+
+    afterEach(() => {
+      consoleError.mockRestore()
+    })
+
+    /** Serviço com sessão iniciada pelo motor em T0, aeronave no solo. */
+    function servicoComSessao(): {
+      service: CollectionService
+      encerrada: ReturnType<typeof vi.fn>
+      falha: ReturnType<typeof vi.fn>
+      criada: ReturnType<typeof vi.fn>
+      leituras: ReturnType<typeof vi.fn>
+    } {
+      const service = new CollectionService()
+      const encerrada = vi.fn()
+      const falha = vi.fn()
+      const criada = vi.fn()
+      const leituras = vi.fn()
+      service.onSessaoEncerrada(encerrada)
+      service.onFalhaAoEncerrar(falha)
+      service.onSessaoCriada(criada)
+      service.onLeituras(leituras)
+      service.inicializar()
+      amostraSolo(true, em(0))
+      ligarMotor(PERFIL_PISTAO_COM_FLAPES, em(0))
+      return { service, encerrada, falha, criada, leituras }
+    }
+
+    it('deve encerrar a sessão com motor parado e no solo por 15 s, com a hora de fim no corte', () => {
+      const { encerrada } = servicoComSessao()
+      amostras(1, 9, true, true) // táxi
+      amostras(10, 25, false, true) // corte aos 10 s
+
+      expect(mockEncerrarSessao).toHaveBeenCalledOnce()
+      expect(mockEncerrarSessao).toHaveBeenCalledWith('sessao-1', em(10))
+      expect(encerrada).toHaveBeenCalledOnce()
+    })
+
+    it('não deve encerrar com 14 s de motor parado no solo', () => {
+      const { encerrada, service } = servicoComSessao()
+      amostras(10, 24, false, true)
+
+      expect(mockEncerrarSessao).not.toHaveBeenCalled()
+      expect(encerrada).not.toHaveBeenCalled()
+      expect(service.getSessaoAtual()?.id).toBe('sessao-1')
+    })
+
+    it('deve emitir onSessaoEncerrada só depois de gravar, com a sessão gravada', () => {
+      const { encerrada } = servicoComSessao()
+      amostras(10, 25, false, true)
+
+      expect(mockEncerrarSessao.mock.invocationCallOrder[0]).toBeLessThan(
+        encerrada.mock.invocationCallOrder[0]
+      )
+      const emitida = encerrada.mock.calls[0][0] as Sessao
+      expect(emitida.status).toBe('encerrada')
+      expect(emitida.encerradaEm).toBe(em(10))
+      expect(emitida).toBe(mockEncerrarSessao.mock.results[0].value)
+    })
+
+    it('deve tirar a sessão da memória depois do encerramento', () => {
+      const { service } = servicoComSessao()
+      amostras(10, 25, false, true)
+
+      expect(service.getSessaoAtual()).toBeNull()
+    })
+
+    it('não deve gravar leitura nem enviar pacote depois do encerramento', () => {
+      const { leituras } = servicoComSessao()
+      amostras(10, 25, false, true)
+      mockInserirLeitura.mockClear()
+      leituras.mockClear()
+
+      enviarLeitura(100, em(26))
+      enviarLote(em(26))
+
+      expect(mockInserirLeitura).not.toHaveBeenCalled()
+      expect(leituras).not.toHaveBeenCalled()
+    })
+
+    it('deve continuar gravando as leituras da espera de 15 s, até o encerramento', () => {
+      servicoComSessao()
+      amostras(10, 20, false, true)
+      enviarLeitura(100, em(20))
+
+      expect(mockInserirLeitura).toHaveBeenCalledOnce()
+      expect((mockInserirLeitura.mock.calls[0][0] as { sessaoId: string }).sessaoId).toBe(
+        'sessao-1'
+      )
+    })
+
+    it('deve gravar o encerramento uma única vez, mesmo com mais amostras paradas depois', () => {
+      const { encerrada } = servicoComSessao()
+      amostras(10, 60, false, true)
+
+      expect(mockEncerrarSessao).toHaveBeenCalledOnce()
+      expect(encerrada).toHaveBeenCalledOnce()
+    })
+
+    it('não deve encerrar com pane em voo (motor parado fora do solo)', () => {
+      const { service, encerrada } = servicoComSessao()
+      amostras(1, 30, true, false) // decolagem e voo
+      amostras(31, 200, false, false) // pane e planeio
+
+      expect(mockEncerrarSessao).not.toHaveBeenCalled()
+      expect(encerrada).not.toHaveBeenCalled()
+      expect(service.getSessaoAtual()?.id).toBe('sessao-1')
+    })
+
+    it('deve encerrar 15 s após o pouso de uma pane em voo, com a hora de fim no toque', () => {
+      servicoComSessao()
+      amostras(1, 30, true, false)
+      amostras(31, 99, false, false)
+      amostras(100, 115, false, true) // toque aos 100 s
+
+      expect(mockEncerrarSessao).toHaveBeenCalledWith('sessao-1', em(100))
+    })
+
+    it('não deve encerrar sem nenhuma amostra de solo (solo desconhecido)', () => {
+      const service = new CollectionService()
+      service.inicializar()
+      ligarMotor(PERFIL_PISTAO_COM_FLAPES, em(0))
+      for (let s = 1; s <= 60; s++) amostraMotor(false, em(s))
+
+      expect(mockEncerrarSessao).not.toHaveBeenCalled()
+    })
+
+    it('deve manter a mesma sessão quando o motor tosse e volta antes de 15 s', () => {
+      const { service, criada, encerrada } = servicoComSessao()
+      amostras(10, 15, false, true) // tosse: 6 s parado
+      ligarMotor(PERFIL_PISTAO_COM_FLAPES, em(16)) // volta (nova partida no client)
+      amostras(17, 30, true, true)
+      amostras(31, 44, false, true) // novo corte, 14 s
+
+      expect(mockCriarSessao).toHaveBeenCalledOnce()
+      expect(criada).toHaveBeenCalledOnce()
+      expect(mockEncerrarSessao).not.toHaveBeenCalled()
+      expect(encerrada).not.toHaveBeenCalled()
+      expect(service.getSessaoAtual()?.id).toBe('sessao-1')
+
+      amostras(45, 46, false, true)
+      expect(mockEncerrarSessao).toHaveBeenCalledWith('sessao-1', em(31))
+    })
+
+    it('deve abrir uma sessão nova, com id e lista de N/A novos, quando o motor é religado após o encerramento', () => {
+      const { service, criada } = servicoComSessao()
+      amostras(10, 25, false, true)
+
+      ligarMotor({ motorAPistao: false, temFlapes: false }, em(30))
+
+      expect(mockCriarSessao).toHaveBeenCalledTimes(2)
+      expect(criada).toHaveBeenCalledTimes(2)
+      const nova = criada.mock.calls[1][0] as Sessao
+      expect(nova.id).toBe('sessao-2')
+      expect(nova.id).not.toBe('sessao-1')
+      expect(nova.status).toBe('ativa')
+      expect([...nova.parametrosNaoAplicaveis].sort()).toEqual(['flaps', 'mixture_1'])
+      expect(service.getSessaoAtual()?.id).toBe('sessao-2')
+
+      enviarLeitura(100, em(31))
+      expect((mockInserirLeitura.mock.calls[mockInserirLeitura.mock.calls.length - 1][0] as { sessaoId: string }).sessaoId).toBe(
+        'sessao-2'
+      )
+    })
+
+    it('deve contar de novo do zero na sessão nova, sem herdar a contagem da anterior', () => {
+      servicoComSessao()
+      amostras(10, 25, false, true)
+      ligarMotor(PERFIL_PISTAO_COM_FLAPES, em(30))
+      amostras(31, 45, false, true) // 14 s depois do corte aos 31 s
+
+      expect(mockEncerrarSessao).toHaveBeenCalledOnce()
+      amostras(46, 46, false, true)
+      expect(mockEncerrarSessao).toHaveBeenLastCalledWith('sessao-2', em(31))
+    })
+
+    describe('falha ao gravar o encerramento', () => {
+      beforeEach(() => {
+        mockEncerrarSessao.mockImplementation(() => {
+          throw new Error('disco cheio')
+        })
+      })
+
+      it('deve logar e emitir onFalhaAoEncerrar com a sessão como estava na memória', () => {
+        const { falha, encerrada } = servicoComSessao()
+        amostras(10, 25, false, true)
+
+        expect(consoleError).toHaveBeenCalledWith(
+          expect.stringContaining('sessao-1'),
+          expect.any(Error)
+        )
+        expect(falha).toHaveBeenCalledOnce()
+        const sessao = falha.mock.calls[0][0] as Sessao
+        expect(sessao.id).toBe('sessao-1')
+        expect(sessao.status).toBe('ativa')
+        expect(encerrada).not.toHaveBeenCalled()
+      })
+
+      it('deve tirar a sessão da memória e não gravar nem enviar mais nada dela', () => {
+        const { service, leituras } = servicoComSessao()
+        amostras(10, 25, false, true)
+        mockInserirLeitura.mockClear()
+        leituras.mockClear()
+
+        enviarLeitura(100, em(26))
+        enviarLote(em(26))
+
+        expect(service.getSessaoAtual()).toBeNull()
+        expect(mockInserirLeitura).not.toHaveBeenCalled()
+        expect(leituras).not.toHaveBeenCalled()
+      })
+
+      it('não deve tentar gravar de novo nas amostras seguintes', () => {
+        const { falha } = servicoComSessao()
+        amostras(10, 60, false, true)
+
+        expect(mockEncerrarSessao).toHaveBeenCalledOnce()
+        expect(falha).toHaveBeenCalledOnce()
+      })
+
+      it('deve abrir uma sessão nova quando o motor é religado depois da falha', () => {
+        const { service, criada } = servicoComSessao()
+        amostras(10, 25, false, true)
+
+        ligarMotor(PERFIL_PISTAO_COM_FLAPES, em(30))
+
+        expect(criada).toHaveBeenCalledTimes(2)
+        expect(service.getSessaoAtual()?.id).toBe('sessao-2')
+      })
+    })
+
+    describe('queda de conexão durante a espera', () => {
+      function cairConexao(): void {
+        capturedConnectionChangeCallbacks.forEach((cb) => cb('desconectado'))
+      }
+
+      function voltarConexao(): void {
+        capturedConnectionChangeCallbacks.forEach((cb) => cb('conectado'))
+      }
+
+      it('não deve encerrar a sessão com a queda e deve repassar o estado da conexão', () => {
+        const { service, encerrada } = servicoComSessao()
+        const conexao = vi.fn()
+        service.onConexaoAlterada(conexao)
+        amostras(10, 15, false, true)
+
+        cairConexao()
+
+        expect(mockEncerrarSessao).not.toHaveBeenCalled()
+        expect(encerrada).not.toHaveBeenCalled()
+        expect(service.getSessaoAtual()?.id).toBe('sessao-1')
+        expect(conexao).toHaveBeenCalledWith('desconectado')
+      })
+
+      it('não deve encerrar com a queda em voo', () => {
+        const { service } = servicoComSessao()
+        amostras(1, 30, true, false)
+
+        cairConexao()
+
+        expect(mockEncerrarSessao).not.toHaveBeenCalled()
+        expect(service.getSessaoAtual()?.id).toBe('sessao-1')
+      })
+
+      it('deve continuar do instante original quando, ao reconectar, o motor segue parado e no solo', () => {
+        servicoComSessao()
+        amostras(10, 15, false, true) // contagem desde 10 s
+        cairConexao()
+        voltarConexao()
+        amostras(60, 60, false, true) // volta 45 s depois com as duas condições
+
+        expect(mockEncerrarSessao).toHaveBeenCalledWith('sessao-1', em(10))
+      })
+
+      it('deve zerar a contagem quando, ao reconectar, o motor voltou', () => {
+        const { service } = servicoComSessao()
+        amostras(10, 15, false, true)
+        cairConexao()
+        voltarConexao()
+        amostras(60, 60, true, true)
+        amostras(61, 74, false, true) // novo corte aos 61 s, 14 s
+
+        expect(mockEncerrarSessao).not.toHaveBeenCalled()
+        expect(service.getSessaoAtual()?.id).toBe('sessao-1')
+      })
+
+      it('deve zerar a contagem quando, ao reconectar, a aeronave saiu do solo', () => {
+        servicoComSessao()
+        amostras(10, 15, false, true)
+        cairConexao()
+        voltarConexao()
+        amostras(60, 60, false, false)
+
+        expect(mockEncerrarSessao).not.toHaveBeenCalled()
+      })
+    })
+
+    describe('verificação da sessão restaurada na abertura', () => {
+      const RESTAURADA = makeSessao({
+        id: 'restaurada',
+        iniciadaEm: '2023-12-31T23:00:00.000Z',
+        parametrosNaoAplicaveis: ['flaps'],
+      })
+
+      let consoleWarn: MockInstance<Parameters<typeof console.warn>, void>
+
+      beforeEach(() => {
+        vi.useFakeTimers()
+        consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+        mockBuscarSessaoAtiva.mockReturnValue(RESTAURADA)
+        mockBuscarUltimaLeituraEm.mockReturnValue('2023-12-31T23:40:00.000Z')
+      })
+
+      afterEach(() => {
+        consoleWarn.mockRestore()
+        vi.useRealTimers()
+      })
+
+      function abrir(): {
+        service: CollectionService
+        criada: ReturnType<typeof vi.fn>
+        encerrada: ReturnType<typeof vi.fn>
+        falha: ReturnType<typeof vi.fn>
+        leituras: ReturnType<typeof vi.fn>
+      } {
+        const service = new CollectionService()
+        const criada = vi.fn()
+        const encerrada = vi.fn()
+        const falha = vi.fn()
+        const leituras = vi.fn()
+        service.onSessaoCriada(criada)
+        service.onSessaoEncerrada(encerrada)
+        service.onFalhaAoEncerrar(falha)
+        service.onLeituras(leituras)
+        service.inicializar()
+        return { service, criada, encerrada, falha, leituras }
+      }
+
+      it('deve usar o prazo de 15 s', () => {
+        expect(VERIFICACAO_ABERTURA_MS).toBe(15_000)
+      })
+
+      it('deve deixar a sessão gravada em verificação: sem leituras, sem pacote, fora da memória', () => {
+        const { service, criada, leituras } = abrir()
+
+        enviarLeitura(100, em(1))
+        enviarLote(em(1))
+
+        expect(service.getSessaoAtual()).toBeNull()
+        expect(mockInserirLeitura).not.toHaveBeenCalled()
+        expect(leituras).not.toHaveBeenCalled()
+        expect(criada).not.toHaveBeenCalled()
+        expect(mockEncerrarSessao).not.toHaveBeenCalled()
+      })
+
+      it('não deve decidir com amostras de solo antes da primeira amostra do motor', () => {
+        const { service } = abrir()
+
+        amostraSolo(true, em(1))
+        amostraSolo(true, em(2))
+
+        expect(service.getSessaoAtual()).toBeNull()
+        expect(mockEncerrarSessao).not.toHaveBeenCalled()
+      })
+
+      it('deve confirmar a sessão com o motor ligado e emitir onSessaoCriada ("Coleta iniciada")', () => {
+        const { service, criada, leituras } = abrir()
+
+        ligarMotor({ motorAPistao: false, temFlapes: false }, em(1))
+
+        expect(criada).toHaveBeenCalledOnce()
+        expect(criada).toHaveBeenCalledWith(RESTAURADA)
+        expect(service.getSessaoAtual()).toEqual(RESTAURADA)
+        expect(mockCriarSessao).not.toHaveBeenCalled()
+        expect(mockEncerrarSessao).not.toHaveBeenCalled()
+
+        enviarLeitura(100, em(2))
+        enviarLote(em(2))
+        expect((mockInserirLeitura.mock.calls[0][0] as { sessaoId: string }).sessaoId).toBe(
+          'restaurada'
+        )
+        expect((leituras.mock.calls[0][0] as { sessaoId: string }).sessaoId).toBe('restaurada')
+      })
+
+      it('deve confirmar também com uma amostra do motor ligado sem aviso de partida', () => {
+        const { service, criada } = abrir()
+
+        amostraMotor(true, em(1))
+
+        expect(criada).toHaveBeenCalledOnce()
+        expect(service.getSessaoAtual()?.id).toBe('restaurada')
+      })
+
+      it('não deve encerrar no prazo depois de confirmar a sessão', () => {
+        const { service } = abrir()
+        ligarMotor(PERFIL_PISTAO_COM_FLAPES, em(1))
+
+        vi.advanceTimersByTime(VERIFICACAO_ABERTURA_MS * 2)
+
+        expect(mockEncerrarSessao).not.toHaveBeenCalled()
+        expect(service.getSessaoAtual()?.id).toBe('restaurada')
+      })
+
+      it('deve encerrar a sessão confirmada pelo detector, como qualquer sessão ativa', () => {
+        const { encerrada } = abrir()
+        amostraSolo(true, em(0))
+        ligarMotor(PERFIL_PISTAO_COM_FLAPES, em(0))
+        amostras(5, 20, false, true)
+
+        expect(mockEncerrarSessao).toHaveBeenCalledWith('restaurada', em(5))
+        expect(encerrada).toHaveBeenCalledOnce()
+      })
+
+      it('deve encerrar silenciosamente com a hora da última leitura quando o motor está parado', () => {
+        const { service, criada, encerrada, falha } = abrir()
+
+        amostraMotor(false, em(1))
+
+        expect(mockBuscarUltimaLeituraEm).toHaveBeenCalledWith('restaurada')
+        expect(mockEncerrarSessao).toHaveBeenCalledOnce()
+        expect(mockEncerrarSessao).toHaveBeenCalledWith('restaurada', '2023-12-31T23:40:00.000Z')
+        expect(criada).not.toHaveBeenCalled()
+        expect(encerrada).not.toHaveBeenCalled()
+        expect(falha).not.toHaveBeenCalled()
+        expect(service.getSessaoAtual()).toBeNull()
+      })
+
+      it('deve encerrar com a hora de início quando a sessão restaurada não tem leitura', () => {
+        mockBuscarUltimaLeituraEm.mockReturnValue(null)
+        abrir()
+
+        amostraMotor(false, em(1))
+
+        expect(mockEncerrarSessao).toHaveBeenCalledWith('restaurada', RESTAURADA.iniciadaEm)
+      })
+
+      it('deve encerrar a sessão restaurada só uma vez, e não pelo prazo depois', () => {
+        abrir()
+        amostraMotor(false, em(1))
+        amostraMotor(false, em(2))
+
+        vi.advanceTimersByTime(VERIFICACAO_ABERTURA_MS * 2)
+
+        expect(mockEncerrarSessao).toHaveBeenCalledOnce()
+      })
+
+      it('deve encerrar silenciosamente aos 15 s sem amostra do motor, com a última leitura', () => {
+        const { service, criada, encerrada, falha } = abrir()
+
+        vi.advanceTimersByTime(VERIFICACAO_ABERTURA_MS - 1)
+        expect(mockEncerrarSessao).not.toHaveBeenCalled()
+
+        vi.advanceTimersByTime(1)
+        expect(mockEncerrarSessao).toHaveBeenCalledOnce()
+        expect(mockEncerrarSessao).toHaveBeenCalledWith('restaurada', '2023-12-31T23:40:00.000Z')
+        expect(consoleWarn).toHaveBeenCalledWith(expect.stringContaining('restaurada'))
+        expect(criada).not.toHaveBeenCalled()
+        expect(encerrada).not.toHaveBeenCalled()
+        expect(falha).not.toHaveBeenCalled()
+        expect(service.getSessaoAtual()).toBeNull()
+      })
+
+      it('deve abrir uma sessão nova quando o motor é ligado depois de encerrar a restaurada', () => {
+        const { service, criada } = abrir()
+        vi.advanceTimersByTime(VERIFICACAO_ABERTURA_MS)
+
+        ligarMotor(PERFIL_PISTAO_COM_FLAPES, em(30))
+
+        expect(mockCriarSessao).toHaveBeenCalledOnce()
+        expect(criada).toHaveBeenCalledOnce()
+        expect((criada.mock.calls[0][0] as Sessao).id).not.toBe('restaurada')
+        expect(service.getSessaoAtual()?.id).not.toBe('restaurada')
+      })
+
+      it('deve só logar quando a gravação do encerramento na abertura falha', () => {
+        mockEncerrarSessao.mockImplementation(() => {
+          throw new Error('banco bloqueado')
+        })
+        const { service, encerrada, falha } = abrir()
+
+        expect(() => amostraMotor(false, em(1))).not.toThrow()
+
+        expect(consoleError).toHaveBeenCalledWith(
+          expect.stringContaining('restaurada'),
+          expect.any(Error)
+        )
+        expect(encerrada).not.toHaveBeenCalled()
+        expect(falha).not.toHaveBeenCalled()
+        expect(service.getSessaoAtual()).toBeNull()
+
+        ligarMotor(PERFIL_PISTAO_COM_FLAPES, em(2))
+        expect(mockCriarSessao).toHaveBeenCalledOnce()
+      })
+
+      it('deve cancelar o prazo ao fechar a conexão', () => {
+        const { service } = abrir()
+
+        service.fecharConexao()
+        vi.advanceTimersByTime(VERIFICACAO_ABERTURA_MS * 2)
+
+        expect(mockEncerrarSessao).not.toHaveBeenCalled()
+        expect(mockClientClose).toHaveBeenCalledOnce()
+      })
+
+      it('não deve agendar prazo nem encerrar nada sem sessão gravada', () => {
+        mockBuscarSessaoAtiva.mockReturnValue(null)
+        abrir()
+
+        vi.advanceTimersByTime(VERIFICACAO_ABERTURA_MS * 2)
+
+        expect(mockEncerrarSessao).not.toHaveBeenCalled()
+        expect(mockBuscarUltimaLeituraEm).not.toHaveBeenCalled()
+      })
     })
   })
 })

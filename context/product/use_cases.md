@@ -3,7 +3,7 @@
 > Propósito: Funcionalidades a desenvolver, com os critérios de aceite que guiam os testes e definem quando está pronto.
 > Atualizar quando: um caso de uso for criado, mudar ou tiver os critérios de aceite revistos.
 > Relacionados: [business_rules.md](business_rules.md), [glossary.md](glossary.md), [../engineering/domain_model.md](../engineering/domain_model.md)
-> Última atualização: 2026-11-17 · loop-003
+> Última atualização: 2026-11-17 · loop-004
 
 ## Índice
 
@@ -11,7 +11,7 @@
 |----|------|--------|
 | UC-001 | Iniciar sessão de coleta | Concluído |
 | UC-002 | Visualizar parâmetros em tempo real | Concluído |
-| UC-003 | Encerrar sessão de coleta | Em aberto |
+| UC-003 | Encerrar sessão de coleta | Em andamento |
 | UC-004 | Selecionar voo para debriefing | Em aberto |
 | UC-005 | Visualizar dados do debriefing | Em aberto |
 | UC-006 | Coletar posição, motor e flapes | Concluído |
@@ -52,7 +52,7 @@ Fluxo principal:
   3. A cada 1 s, mesma cadência da coleta, o painel atualiza os valores com a leitura do simulador, enquanto a sessão está ativa.
 Fluxos alternativos:
   A. Sem sessão ativa: no lugar do painel, o sistema exibe a orientação "Inicie o simulador e ligue o motor para começar".
-  B. Sessão encerrada: o painel mantém os últimos valores congelados e exibe o aviso "Sessão encerrada". Só ocorre no uso real depois do UC-003. Se a sessão encerrar com a conexão caída, os valores congelados ficam como "—", porque não há valor confiável para manter (decisão do HITL-4 do loop-002). Parâmetros N/A continuam "N/A" (RN-007).
+  B. Sessão encerrada: o painel mantém os últimos valores congelados e exibe o aviso "Sessão encerrada". Ocorre quando a sessão encerra pelo UC-003 (RN-004), inclusive quando a gravação do encerramento falha, e dura até o motor ser religado (nova sessão) ou o app ser fechado; ao reabrir o app, aparece a orientação do fluxo A. Se a sessão encerrar com a conexão caída, os valores congelados ficam como "—", porque não há valor confiável para manter (decisão do HITL-4 do loop-002). Parâmetros N/A continuam "N/A" (RN-007).
   C. Sem sinal durante a sessão (conexão com o simulador perdida, ou 2 s sem leitura nova com a conexão aberta): os valores viram "—" e o painel exibe o aviso "Sem sinal do simulador". Quando as leituras voltam, os valores voltam e o aviso some. Parâmetros N/A continuam "N/A", porque N/A tem prioridade sobre "—" (RN-007).
 Fora do escopo deste caso de uso: maximizar e reduzir cards do painel (vira item do backlog).
 Regras aplicadas: RN-001, RN-002, RN-003, RN-004, RN-006, RN-007
@@ -69,17 +69,42 @@ Critérios de aceite:
 UC-003
 Nome: Encerrar sessão de coleta
 Ator: Piloto
-Objetivo: Encerrar automaticamente a sessão e persistir todos os dados registrados quando o motor é desligado.
-Pré-condições: Uma sessão de coleta está ativa.
+Objetivo: Encerrar automaticamente a sessão quando a aeronave está no solo com o motor parado, gravando a hora de fim, para que o voo fique registrado com início, fim e duração.
+Pré-condições: Uma sessão de coleta está ativa (UC-001).
 Fluxo principal:
-  1. O piloto desliga o motor da aeronave no simulador.
-  2. O sistema detecta o evento de motor desligado.
-  3. O sistema encerra a sessão e persiste todos os dados coletados.
-Fluxos alternativos: —
-Regras aplicadas: RN-004, RN-005
+  1. Com a aeronave no solo, o piloto desliga o motor no simulador (ou pousa com o motor já parado).
+  2. O sistema verifica que as duas condições valem ao mesmo tempo: aeronave no solo e motor parado.
+  3. Depois de 15 s seguidos com as duas condições, o sistema encerra a sessão (RN-004).
+  4. O sistema grava a hora de fim e o status encerrada. A hora de fim é o início dos 15 s, ou seja, o mais tarde entre o instante em que o motor parou e o instante em que a aeronave tocou o solo. As leituras já foram gravadas a cada 1 s durante a sessão e são preservadas.
+  5. Só depois de confirmada a gravação, o sistema exibe a notificação "Sessão encerrada. Dados salvos." e o painel de tempo real mostra os últimos valores congelados com o aviso "Sessão encerrada" (UC-002, fluxo B), até o motor ser religado ou o app ser fechado.
+Fluxos alternativos:
+  A. Pane em voo: motor parado com a aeronave fora do solo não encerra a sessão. Se a aeronave pousar e ficar 15 s no solo com o motor parado, a sessão encerra com a hora do toque.
+  B. Motor volta antes dos 15 s (corte e religamento, motor que tosse): a contagem zera e a sessão continua a mesma. A contagem também zera se a aeronave sair do solo. Se o sistema não souber se a aeronave está no solo, a sessão não encerra.
+  C. Queda de conexão com o simulador (simulador fechado ou caído) com sessão ativa: a sessão não encerra; o painel mostra "Sem sinal do simulador" (UC-002, fluxo C). Se a queda acontecer durante a contagem dos 15 s e, ao reconectar, o motor continuar parado e a aeronave no solo, vale o instante original em que as duas condições começaram; se qualquer condição deixou de valer, a contagem zera.
+  D. App fechado com sessão ativa: fechar o app não encerra a sessão. Ao abrir o app, a sessão ativa gravada fica em verificação por até 15 s: se o motor estiver ligado nesse prazo, a sessão continua e o sistema exibe "Coleta iniciada"; se o motor estiver parado ou não chegar dado do motor em 15 s, a sessão é encerrada com a hora da última leitura (sem leitura, a hora de início), sem notificação. Durante a verificação, nenhuma leitura é gravada.
+  E. Sessões antigas sem encerramento (gravadas pelas versões v0.1.0 a v0.3.0, ou deixadas ativas por falha de gravação): a cada abertura do app, toda sessão ativa exceto a mais recente é encerrada com a hora da última leitura; sem leitura, com a hora de início (duração 0). A mais recente segue o fluxo D.
+  F. Religamento após o encerramento: o motor religado abre sempre uma nova sessão (RN-003); a sessão encerrada nunca é reaberta.
+  G. Sessão curta (ex.: poucos segundos): fica gravada como qualquer outra (RN-005). Ocultar voos curtos, se preciso, é filtro da lista de voos (UC-004).
+  H. Falha ao gravar o encerramento: o sistema registra a falha em log e exibe a notificação de erro "Não foi possível salvar o encerramento. Os dados do voo foram mantidos e o encerramento será concluído na próxima abertura."; o painel mostra a sessão como encerrada; a sessão deixa de ser a sessão em curso (um religamento abre nova sessão) e no banco continua ativa até a próxima abertura do app, que a encerra (fluxos D e E). Falha ao gravar um encerramento feito na abertura do app gera só log, sem aviso na tela; a abertura seguinte tenta de novo.
+Observações:
+  - Duração do voo = hora de fim − hora de início, incluindo táxi e períodos sem sinal. O formato de exibição fica para o UC-004.
+  - As leituras gravadas durante os 15 s de espera ficam no banco, depois da hora de fim; o debriefing (UC-005) corta a exibição na hora de fim.
+Limitações conhecidas (aceitas no HITL-1 e no HITL-3 do loop-004):
+  - Sair ao menu do simulador e iniciar outro voo sem cortar o motor: os dois voos ficam na mesma sessão.
+  - Fechar o simulador com o motor ligado e carregar outro voo já com o motor ligado: os dois voos ficam na mesma sessão.
+Regras aplicadas: RN-003, RN-004, RN-005, RN-006, RN-007
 Critérios de aceite:
-  - Dado que uma sessão está ativa, quando o piloto desliga o motor no simulador, então o sistema encerra a sessão e todos os parâmetros coletados ficam disponíveis para debriefing.
-  - Dado que a sessão foi encerrada, quando o piloto abre a lista de voos, então a sessão recém-encerrada aparece na lista com data, hora e duração.
+  - CA-003-1: Dado que uma sessão está ativa, quando a aeronave fica no solo com o motor parado por 15 s seguidos, então a sessão fica com status encerrada e hora de fim gravada, as leituras coletadas continuam gravadas, e só depois da gravação o sistema exibe "Sessão encerrada. Dados salvos." e o painel mostra os últimos valores congelados com o aviso "Sessão encerrada".
+  - CA-003-2: Dado que a sessão encerrou, quando a hora de fim é gravada, então ela é o mais tarde entre o instante em que o motor parou e o instante em que a aeronave tocou o solo, e a duração (hora de fim − hora de início) inclui táxi e períodos sem sinal.
+  - CA-003-3: Dado que uma sessão está ativa, quando o motor para com a aeronave fora do solo, então a sessão não encerra enquanto a aeronave não estiver no solo com o motor parado por 15 s seguidos.
+  - CA-003-4: Dado que o motor parou com a aeronave no solo, quando o motor volta (ou a aeronave sai do solo) antes de 15 s, então a sessão continua a mesma e a contagem recomeça do zero.
+  - CA-003-5: Dado que uma sessão está ativa, quando a conexão com o simulador cai, então a sessão não encerra; se a queda ocorre durante a contagem e, ao reconectar, o motor continua parado e a aeronave no solo, a contagem segue a partir do instante original; se alguma condição deixou de valer, a contagem zera.
+  - CA-003-6: Dado que uma sessão foi encerrada, quando o piloto religa o motor, então o sistema abre uma nova sessão e a sessão encerrada não é reaberta.
+  - CA-003-7: Dado que o app foi fechado com uma sessão ativa, quando o app é aberto e o motor está ligado em até 15 s, então a mesma sessão continua e o sistema exibe "Coleta iniciada"; quando o motor está parado ou não chega dado do motor em 15 s, então a sessão é encerrada com a hora da última leitura (sem leitura, a hora de início), sem notificação.
+  - CA-003-8: Dado que existem sessões ativas antigas, quando o app é aberto, então todas, exceto a mais recente, são encerradas com a hora da última leitura (sem leitura, a hora de início, duração 0), e a mais recente segue o CA-003-7.
+  - CA-003-9: Dado que uma sessão durou poucos segundos, quando ela encerra, então fica gravada como qualquer outra sessão.
+  - CA-003-10: Dado que a gravação do encerramento falha, quando a sessão encerraria, então o sistema registra a falha em log, exibe a notificação de erro "Não foi possível salvar o encerramento. Os dados do voo foram mantidos e o encerramento será concluído na próxima abertura.", as leituras continuam gravadas e a próxima abertura do app conclui o encerramento.
+(O antigo critério "a sessão recém-encerrada aparece na lista de voos com data, hora e duração" saiu do UC-003 no loop-004: este caso de uso grava a hora de fim e o status; a exibição na lista é do UC-004, que já tem esse critério.)
 
 ---
 

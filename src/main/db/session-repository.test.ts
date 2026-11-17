@@ -5,11 +5,14 @@ const mockRun = vi.fn()
 const mockGet = vi.fn()
 const mockPrepare = vi.fn()
 
+const mockTransaction = vi.fn((fn: () => unknown) => () => fn())
+
 vi.mock('better-sqlite3', () => {
   return {
     default: vi.fn().mockImplementation(() => ({
       prepare: mockPrepare,
       pragma: vi.fn(),
+      transaction: mockTransaction,
     })),
   }
 })
@@ -32,7 +35,12 @@ function makeMockDb() {
 }
 
 // import under test AFTER mocks are set up
-import { criarSessao, buscarSessaoAtiva } from './session-repository'
+import {
+  criarSessao,
+  buscarSessaoAtiva,
+  encerrarSessao,
+  encerrarSessoesAtivasAnteriores,
+} from './session-repository'
 
 describe('sessionRepository', () => {
   beforeEach(() => {
@@ -187,6 +195,60 @@ describe('sessionRepository', () => {
       expect(buscarSessaoAtiva()!.parametrosNaoAplicaveis).toEqual(['mixture_1'])
       expect(erro).toHaveBeenCalledTimes(2)
       erro.mockRestore()
+    })
+  })
+
+  // --- UC-003: encerramento (SQL real em session-repository-sqlite.test.ts) ---
+
+  describe('encerrarSessao', () => {
+    const ROW_ENCERRADA = {
+      id: 'abc-123',
+      iniciada_em: '2024-01-01T00:00:00.000Z',
+      encerrada_em: '2024-01-01T01:00:00.000Z',
+      aeronave: '',
+      aerodromo_origem: null,
+      aerodromo_destino: null,
+      status: 'encerrada',
+      parametros_nao_aplicaveis: '[]',
+    }
+
+    it('deve gravar status e encerradaEm só de sessão ativa e devolver a sessão gravada', () => {
+      mockRun.mockReturnValueOnce({ changes: 1 })
+      mockGet.mockReturnValueOnce(ROW_ENCERRADA)
+
+      const sessao = encerrarSessao('abc-123', '2024-01-01T01:00:00.000Z')
+
+      const sql = mockPrepare.mock.calls[0][0] as string
+      expect(sql).toContain("status = 'encerrada'")
+      expect(sql).toContain("status = 'ativa'")
+      expect(mockRun).toHaveBeenCalledWith({ id: 'abc-123', encerradaEm: '2024-01-01T01:00:00.000Z' })
+      expect(sessao.status).toBe('encerrada')
+      expect(sessao.encerradaEm).toBe('2024-01-01T01:00:00.000Z')
+    })
+
+    it('deve lançar erro quando nenhuma linha muda', () => {
+      mockRun.mockReturnValueOnce({ changes: 0 })
+      expect(() => encerrarSessao('x', '2024-01-01T01:00:00.000Z')).toThrow()
+    })
+
+    it('deve lançar erro quando mais de uma linha muda', () => {
+      mockRun.mockReturnValueOnce({ changes: 2 })
+      expect(() => encerrarSessao('x', '2024-01-01T01:00:00.000Z')).toThrow()
+    })
+
+    it('deve lançar erro quando a sessão some depois do UPDATE', () => {
+      mockRun.mockReturnValueOnce({ changes: 1 })
+      mockGet.mockReturnValueOnce(undefined)
+      expect(() => encerrarSessao('x', '2024-01-01T01:00:00.000Z')).toThrow()
+    })
+  })
+
+  describe('encerrarSessoesAtivasAnteriores', () => {
+    it('deve rodar numa transação e devolver quantas sessões encerrou', () => {
+      mockRun.mockReturnValueOnce({ changes: 3 })
+
+      expect(encerrarSessoesAtivasAnteriores()).toBe(3)
+      expect(mockTransaction).toHaveBeenCalledOnce()
     })
   })
 })

@@ -3,6 +3,7 @@ import {
   SESSION_GET_ACTIVE,
   SESSION_STARTED,
   SESSION_ENDED,
+  SESSION_END_FAILED,
   PARAMETER_LIST_ACTIVE,
   PARAMETER_READINGS,
   CONNECTION_GET_STATE,
@@ -31,6 +32,16 @@ contextBridge.exposeInMainWorld('electronApi', {
     ipcRenderer.on(SESSION_ENDED, listener)
     return () => {
       ipcRenderer.removeListener(SESSION_ENDED, listener)
+    }
+  },
+
+  onSessionEndFailed: (callback: (sessao: Sessao) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, sessao: Sessao): void => {
+      callback(sessao)
+    }
+    ipcRenderer.on(SESSION_END_FAILED, listener)
+    return () => {
+      ipcRenderer.removeListener(SESSION_END_FAILED, listener)
     }
   },
 

@@ -40,14 +40,18 @@ const ENGINE_TYPE_PISTAO = 0
 
 /**
  * Definition IDs: DEF_ID_ENGINE = ENG COMBUSTION:1, ENGINE TYPE e FLAPS AVAILABLE
- * (nessa ordem, todos INT32); DEF_ID_PARAMS = um FLOAT64 por parâmetro ativo.
+ * (nessa ordem, todos INT32); DEF_ID_PARAMS = um FLOAT64 por parâmetro ativo;
+ * DEF_ID_GROUND = SIM ON GROUND (INT32). O solo fica numa definição própria para que
+ * uma recusa da SimVar só impeça o encerramento da sessão, nunca o início (UC-003).
  */
 const DEF_ID_ENGINE = 0 as const
 const DEF_ID_PARAMS = 1 as const
+const DEF_ID_GROUND = 2 as const
 
 /** Request IDs */
 const REQ_ID_ENGINE = 0 as const
 const REQ_ID_PARAMS = 1 as const
+const REQ_ID_GROUND = 2 as const
 
 export type ParameterReadingPayload = {
   parametroId: string
@@ -60,13 +64,29 @@ export type ParameterBatchPayload = {
   leituras: LeituraDoPacote[]
 }
 
+/** Amostra do motor 1, uma por leitura de `DEF_ID_ENGINE` (1 s). */
+export type AmostraDoMotor = {
+  combustao: boolean
+  timestamp: string
+}
+
+/** Amostra de `SIM ON GROUND`, uma por leitura de `DEF_ID_GROUND` (1 s). */
+export type AmostraDoSolo = {
+  noSolo: boolean
+  timestamp: string
+}
+
 type EngineStartedCallback = (perfil: PerfilDaAeronave) => void
+type EngineSampleCallback = (amostra: AmostraDoMotor) => void
+type GroundSampleCallback = (amostra: AmostraDoSolo) => void
 type ParameterReadingCallback = (payload: ParameterReadingPayload) => void
 type ParameterBatchCallback = (payload: ParameterBatchPayload) => void
 type ConnectionChangeCallback = (estado: EstadoConexao) => void
 
 export class SimConnectClient {
   private engineStartedCallbacks: EngineStartedCallback[] = []
+  private engineSampleCallbacks: EngineSampleCallback[] = []
+  private groundSampleCallbacks: GroundSampleCallback[] = []
   private parameterReadingCallbacks: ParameterReadingCallback[] = []
   private parameterBatchCallbacks: ParameterBatchCallback[] = []
   private connectionChangeCallbacks: ConnectionChangeCallback[] = []
@@ -78,6 +98,16 @@ export class SimConnectClient {
 
   onEngineStarted(callback: EngineStartedCallback): void {
     this.engineStartedCallbacks.push(callback)
+  }
+
+  /** Recebe toda amostra do motor, depois de `onEngineStarted` quando há partida. */
+  onEngineSample(callback: EngineSampleCallback): void {
+    this.engineSampleCallbacks.push(callback)
+  }
+
+  /** Recebe toda amostra de `SIM ON GROUND`. */
+  onGroundSample(callback: GroundSampleCallback): void {
+    this.groundSampleCallbacks.push(callback)
   }
 
   onParameterReading(callback: ParameterReadingCallback): void {
@@ -177,6 +207,19 @@ export class SimConnectClient {
               this.engineStartedCallbacks.forEach((cb) => cb(perfil))
             }
             this.lastEngineCombustion = combustion
+            const amostra: AmostraDoMotor = {
+              combustao: combustion,
+              timestamp: new Date().toISOString(),
+            }
+            this.engineSampleCallbacks.forEach((cb) => cb(amostra))
+          }
+
+          if (recvData.requestID === REQ_ID_GROUND) {
+            const amostra: AmostraDoSolo = {
+              noSolo: recvData.data.readInt32() !== 0,
+              timestamp: new Date().toISOString(),
+            }
+            this.groundSampleCallbacks.forEach((cb) => cb(amostra))
           }
 
           if (recvData.requestID === REQ_ID_PARAMS) {
@@ -234,6 +277,9 @@ export class SimConnectClient {
         )
       }
     }
+
+    // Ground definition: aircraft on ground (session end detection, UC-003)
+    handle.addToDataDefinition(DEF_ID_GROUND, 'SIM ON GROUND', 'Bool', SimConnectDataType.INT32)
   }
 
   private requestData(handle: ConnectionHandle): void {
@@ -247,6 +293,13 @@ export class SimConnectClient {
     handle.requestDataOnSimObject(
       REQ_ID_PARAMS,
       DEF_ID_PARAMS,
+      SimConnectConstants.OBJECT_ID_USER,
+      SimConnectPeriod.SECOND
+    )
+
+    handle.requestDataOnSimObject(
+      REQ_ID_GROUND,
+      DEF_ID_GROUND,
       SimConnectConstants.OBJECT_ID_USER,
       SimConnectPeriod.SECOND
     )

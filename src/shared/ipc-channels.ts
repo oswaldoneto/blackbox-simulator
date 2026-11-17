@@ -1,10 +1,16 @@
 /** Emitido do main → renderer quando uma nova sessão é iniciada. */
 export const SESSION_STARTED = 'session:started' as const
 
-/** Emitido do main → renderer quando uma sessão é encerrada. */
+/** Emitido do main → renderer quando uma sessão é encerrada, depois de gravado o encerramento. */
 export const SESSION_ENDED = 'session:ended' as const
 
-/** Invocado pelo renderer para buscar a sessão ativa no main. */
+/**
+ * Emitido do main → renderer quando a gravação do encerramento falha. Leva a sessão como
+ * estava na memória do main; no banco ela continua ativa até a próxima abertura.
+ */
+export const SESSION_END_FAILED = 'session:end-failed' as const
+
+/** Invocado pelo renderer para buscar a sessão ativa na memória do main. */
 export const SESSION_GET_ACTIVE = 'session:get-active' as const
 
 /** Invocado pelo renderer para buscar os parâmetros de voo ativos (RN-002). */

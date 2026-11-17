@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // --- mocks ---
 const mockRun = vi.fn()
-const mockPrepare = vi.fn().mockReturnValue({ run: mockRun })
+const mockGet = vi.fn()
+const mockPrepare = vi.fn().mockReturnValue({ run: mockRun, get: mockGet })
 
 vi.mock('better-sqlite3', () => ({
   default: vi.fn().mockImplementation(() => ({
@@ -20,12 +21,12 @@ vi.mock('fs', async (importOriginal) => {
   return { ...actual, mkdirSync: vi.fn() }
 })
 
-import { inserirLeitura } from './reading-repository'
+import { inserirLeitura, buscarUltimaLeituraEm } from './reading-repository'
 
 describe('readingRepository', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockPrepare.mockReturnValue({ run: mockRun })
+    mockPrepare.mockReturnValue({ run: mockRun, get: mockGet })
   })
 
   describe('inserirLeitura', () => {
@@ -59,6 +60,30 @@ describe('readingRepository', () => {
       expect(sql).toContain('INSERT INTO leituras_de_parametro')
       expect(sql).toContain('sessao_id')
       expect(sql).toContain('parametro_id')
+    })
+  })
+
+  // --- UC-003: hora da última leitura (SQL real em session-repository-sqlite.test.ts) ---
+
+  describe('buscarUltimaLeituraEm', () => {
+    it('deve buscar MAX(timestamp) das leituras da sessão pedida', () => {
+      mockGet.mockReturnValueOnce({ ultima: '2024-01-01T00:10:00.000Z' })
+
+      expect(buscarUltimaLeituraEm('sessao-1')).toBe('2024-01-01T00:10:00.000Z')
+      const sql = mockPrepare.mock.calls[0][0] as string
+      expect(sql).toContain('MAX(timestamp)')
+      expect(sql).toContain('leituras_de_parametro')
+      expect(mockGet).toHaveBeenCalledWith({ sessaoId: 'sessao-1' })
+    })
+
+    it('deve devolver null quando a sessão não tem leitura', () => {
+      mockGet.mockReturnValueOnce({ ultima: null })
+      expect(buscarUltimaLeituraEm('sem-leituras')).toBeNull()
+    })
+
+    it('deve devolver null quando a consulta não devolve linha', () => {
+      mockGet.mockReturnValueOnce(undefined)
+      expect(buscarUltimaLeituraEm('x')).toBeNull()
     })
   })
 })

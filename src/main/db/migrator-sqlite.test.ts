@@ -58,19 +58,47 @@ function adaptar(db: DatabaseSync): unknown {
   }
 }
 
-const SQL_001 = (): string => {
+function lerMigration(arquivo: string): string {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const fs = require('fs') as typeof import('fs')
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const path = require('path') as typeof import('path')
-  return fs.readFileSync(path.join(__dirname, 'migrations', '001-initial.sql'), 'utf-8')
+  return fs.readFileSync(path.join(__dirname, 'migrations', arquivo), 'utf-8')
 }
+
+const SQL_001 = (): string => lerMigration('001-initial.sql')
+const SQL_002 = (): string => lerMigration('002-ampliar-parametros.sql')
 
 describe.skipIf(nodeSqlite === null)('migrator com SQLite real (node:sqlite)', () => {
   let db: DatabaseSync
 
   function contar(sql: string): number {
     return (db.prepare(sql).get() as { n: number }).n
+  }
+
+  /** Nomes dos índices criados por migration na tabela de leituras. */
+  function indicesDeLeituras(): string[] {
+    return (
+      db
+        .prepare(
+          `SELECT name FROM sqlite_master
+           WHERE type = 'index' AND tbl_name = 'leituras_de_parametro' AND sql IS NOT NULL
+           ORDER BY name`
+        )
+        .all() as { name: string }[]
+    ).map((r) => r.name)
+  }
+
+  /** Banco da v0.3.0 (loop-003): 001 e 002 aplicadas e registradas. */
+  function criarBancoDoLoop003(): void {
+    db.exec(SQL_001())
+    db.exec(SQL_002())
+    db.exec(
+      `CREATE TABLE schema_migrations (versao TEXT PRIMARY KEY, aplicada_em TEXT NOT NULL);
+       INSERT INTO schema_migrations (versao, aplicada_em) VALUES
+         ('001-initial.sql', '2026-11-10T10:00:00.000Z'),
+         ('002-ampliar-parametros.sql', '2026-11-10T10:00:00.000Z');`
+    )
   }
 
   beforeEach(() => {
@@ -83,7 +111,7 @@ describe.skipIf(nodeSqlite === null)('migrator com SQLite real (node:sqlite)', (
     db.close()
   })
 
-  it('deve aplicar 001 e 002 num banco novo e deixar os 12 parâmetros ativos', () => {
+  it('deve aplicar 001, 002 e 003 num banco novo e deixar os 12 parâmetros ativos', () => {
     runMigrations()
 
     const ids = (
@@ -99,7 +127,11 @@ describe.skipIf(nodeSqlite === null)('migrator com SQLite real (node:sqlite)', (
         versao: string
       }[]
     ).map((r) => r.versao)
-    expect(versoes).toEqual(['001-initial.sql', '002-ampliar-parametros.sql'])
+    expect(versoes).toEqual([
+      '001-initial.sql',
+      '002-ampliar-parametros.sql',
+      '003-indice-leituras.sql',
+    ])
   })
 
   it('deve semear os 6 parâmetros novos com nome e unidade', () => {
@@ -140,7 +172,7 @@ describe.skipIf(nodeSqlite === null)('migrator com SQLite real (node:sqlite)', (
     expect(contar(`SELECT COUNT(*) AS n FROM parametros_de_voo`)).toBe(12)
     expect(contar(`SELECT COUNT(*) AS n FROM sessoes`)).toBe(1)
     expect(contar(`SELECT COUNT(*) AS n FROM leituras_de_parametro`)).toBe(1)
-    expect(contar(`SELECT COUNT(*) AS n FROM schema_migrations`)).toBe(2)
+    expect(contar(`SELECT COUNT(*) AS n FROM schema_migrations`)).toBe(3)
   })
 
   it('deve ser idempotente: rodar de novo não reaplica nem duplica nada', () => {
@@ -148,7 +180,8 @@ describe.skipIf(nodeSqlite === null)('migrator com SQLite real (node:sqlite)', (
     expect(() => runMigrations()).not.toThrow()
 
     expect(contar(`SELECT COUNT(*) AS n FROM parametros_de_voo`)).toBe(12)
-    expect(contar(`SELECT COUNT(*) AS n FROM schema_migrations`)).toBe(2)
+    expect(contar(`SELECT COUNT(*) AS n FROM schema_migrations`)).toBe(3)
+    expect(indicesDeLeituras()).toEqual(['idx_leituras_sessao_timestamp'])
   })
 
   it('deve permitir reexecutar a 001 sobre o banco já migrado sem efeito', () => {
@@ -189,5 +222,83 @@ describe.skipIf(nodeSqlite === null)('migrator com SQLite real (node:sqlite)', (
     const lida = buscarSessaoAtiva()
     expect(lida).toEqual(criada)
     expect(lida!.parametrosNaoAplicaveis).toEqual(['mixture_1', 'flaps'])
+  })
+
+  // --- UC-003: migration 003 (índice das leituras) ---
+
+  describe('migration 003', () => {
+    it('deve criar o índice (sessao_id, timestamp) em leituras_de_parametro num banco novo', () => {
+      runMigrations()
+
+      expect(indicesDeLeituras()).toEqual(['idx_leituras_sessao_timestamp'])
+      const colunas = (
+        db.prepare(`PRAGMA index_info('idx_leituras_sessao_timestamp')`).all() as {
+          seqno: number
+          name: string
+        }[]
+      )
+        .sort((a, b) => a.seqno - b.seqno)
+        .map((c) => c.name)
+      expect(colunas).toEqual(['sessao_id', 'timestamp'])
+    })
+
+    it('deve aplicar só a 003 num banco do loop-003, sem mexer em sessões e leituras', () => {
+      criarBancoDoLoop003()
+      db.exec(
+        `INSERT INTO sessoes (id, iniciada_em, status) VALUES
+           ('a', '2026-11-10T10:00:00.000Z', 'ativa'),
+           ('b', '2026-11-11T10:00:00.000Z', 'encerrada');
+         INSERT INTO leituras_de_parametro (sessao_id, parametro_id, timestamp, valor) VALUES
+           ('a', 'altitude_msl', '2026-11-10T10:00:01.000Z', 4500),
+           ('b', 'flaps', '2026-11-11T10:00:01.000Z', 10);`
+      )
+
+      runMigrations()
+
+      const versoes = (
+        db.prepare(`SELECT versao FROM schema_migrations ORDER BY versao`).all() as {
+          versao: string
+        }[]
+      ).map((r) => r.versao)
+      expect(versoes).toEqual([
+        '001-initial.sql',
+        '002-ampliar-parametros.sql',
+        '003-indice-leituras.sql',
+      ])
+      expect(indicesDeLeituras()).toEqual(['idx_leituras_sessao_timestamp'])
+      // A migration só cria o índice: status das sessões e leituras ficam como estavam.
+      expect(
+        db.prepare(`SELECT id, status, encerrada_em FROM sessoes ORDER BY id`).all().map((r) => ({
+          ...r,
+        }))
+      ).toEqual([
+        { id: 'a', status: 'ativa', encerrada_em: null },
+        { id: 'b', status: 'encerrada', encerrada_em: null },
+      ])
+      expect(contar(`SELECT COUNT(*) AS n FROM leituras_de_parametro`)).toBe(2)
+    })
+
+    it('deve usar o índice na busca da última leitura de uma sessão', () => {
+      runMigrations()
+
+      const plano = (
+        db
+          .prepare(
+            `EXPLAIN QUERY PLAN
+             SELECT MAX(timestamp) AS ultima FROM leituras_de_parametro WHERE sessao_id = 'x'`
+          )
+          .all() as { detail: string }[]
+      )
+        .map((r) => r.detail)
+        .join(' | ')
+      expect(plano).toContain('idx_leituras_sessao_timestamp')
+    })
+
+    it('deve ser idempotente se o índice já existir (CREATE INDEX IF NOT EXISTS)', () => {
+      runMigrations()
+
+      expect(() => db.exec(lerMigration('003-indice-leituras.sql'))).not.toThrow()
+      expect(indicesDeLeituras()).toEqual(['idx_leituras_sessao_timestamp'])
+    })
   })
 })
