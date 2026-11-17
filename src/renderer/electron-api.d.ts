@@ -2,6 +2,7 @@ import type { EstadoConexao, PacoteDeLeituras, ParametroDeVoo, Sessao } from '..
 
 export interface ElectronApi {
   getActiveSessao: () => Promise<Sessao | null>
+  listSessoesEncerradas: () => Promise<Sessao[]>
   onSessionStarted: (callback: (sessao: Sessao) => void) => () => void
   onSessionEnded: (callback: (sessao: Sessao) => void) => () => void
   onSessionEndFailed: (callback: (sessao: Sessao) => void) => () => void

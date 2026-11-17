@@ -3,7 +3,7 @@
 > Propósito: Diretrizes de usabilidade e acessibilidade.
 > Atualizar quando: uma diretriz mudar ou um teste com usuários trouxer um aprendizado.
 > Relacionados: [../product/product.md](../product/product.md)
-> Última atualização: 2026-11-17 · loop-004
+> Última atualização: 2026-11-17 · loop-005
 
 ## Princípios
 
@@ -38,6 +38,28 @@ Débitos de acessibilidade (revisão do loop-004; decisão do HITL-3: débito pa
 - A notificação de erro usa `role="status"`/`aria-live="polite"`; o usual para erro seria `role="alert"`.
 - Cada notificação nova é remontada (para reiniciar os 4 s) já com o texto; isso estende o risco de não anúncio, descrito acima, à notificação que substitui outra.
 
+### Navegação, lista de voos e tela do voo (UC-004)
+
+Foco ao trocar de tela (decisão do HITL-3 do loop-005):
+- Ao trocar de tela, o foco vai para o título da tela nova (h1 com `tabIndex={-1}`).
+- O painel não tem título visível; tem um h1 visualmente oculto "Painel de tempo real", que recebe o foco ao ir ao painel pela barra e na volta automática vinda de outra tela. A carga inicial do app não move o foco.
+- Ir para "Voos" pela barra: foco no título "Voos".
+- Abrir um voo: foco no botão "Voltar à lista" (exceção decidida), que tem `aria-describedby` apontando para o título "Voo de dd/mm/aaaa" e o aviso "Debriefing disponível em breve", para que o leitor de tela leia os dois.
+- Voltar do voo à lista: foco no card de origem quando a lista carrega; se o card não estiver mais na lista, foco no título "Voos".
+
+Teclado:
+- Tab percorre os botões da barra ("Painel", "Voos") e os cards da lista; Enter abre o voo; Esc na tela do voo volta à lista.
+
+Leitor de tela:
+- A navegação é um `<nav aria-label="Navegação principal">`; o botão da seção atual tem `aria-current="page"`.
+- Cada card de sessão tem `aria-label` "Voo de dd/mm/aaaa às HH:mm, duração <duração por extenso>". A duração por extenso evita que "1:12:05" seja lido como hora do dia: "1 hora, 12 minutos e 5 segundos" (singular e plural; partes zero omitidas), "0 segundos" para duração zero. Valor ausente ou inválido vira "Voo de dd/mm/aaaa às HH:mm, duração indisponível". O texto visível continua em h:mm:ss.
+- A mensagem de carregando da lista usa `role="status"`; a de erro usa `role="alert"`.
+
+Débitos de acessibilidade (revisão do loop-005; decisão do HITL-3: débito):
+- O estado vazio da lista não é anunciado; o carregando com `role="status"` é montado já com o texto (mesmo risco de não anúncio descrito acima).
+- Ao voltar do voo, o foco fica no `body` enquanto a lista é buscada de novo, e permanece lá se a busca falhar (o erro é anunciado por `role="alert"`).
+- Na tela do voo, a duração aparece só em h:mm:ss, sem versão por extenso para leitor de tela (tratar no UC-005).
+
 ## Feedback e mensagens de erro
 
 - Toda operação que leva mais de 500 ms mostra um indicador de carregamento.
@@ -58,7 +80,26 @@ Débitos de acessibilidade (revisão do loop-004; decisão do HITL-3: débito pa
 - Exceção decidida à diretriz de mensagens de erro (HITL-3 do loop-004): o texto de erro do encerramento não pede ação ao piloto; em vez disso, diz que os dados do voo foram mantidos e que o encerramento será concluído na próxima abertura.
 - Toda notificação nova fica 4 s completos na tela, mesmo que substitua outra ou repita o texto.
 - Débito (HITL-3 do loop-004): "próxima abertura" pode não deixar claro que é a abertura do app. Os demais débitos de leitura da notificação de erro estão em [design.md](design.md), "Em aberto e débitos de UX".
-- Estados vazios (ex.: nenhum voo registrado) explicam o motivo e orientam o próximo passo. Exemplo: "Nenhum voo registrado. Inicie o simulador e ligue o motor para começar."
+- Estados vazios explicam o motivo e orientam o próximo passo (texto oficial da lista de voos abaixo).
+
+### Lista de voos e tela do voo (UC-004)
+
+| Situação | Texto |
+|---|---|
+| Título da lista | "Voos" |
+| Lista carregando (só após 500 ms) | "Carregando voos..." |
+| Nenhuma sessão encerrada (vale também quando só existe a sessão ativa) | "Nenhum voo registrado. Inicie o simulador e ligue o motor para começar." |
+| Falha na primeira carga da lista | "Não foi possível carregar a lista de voos. Feche e abra o aplicativo para tentar de novo." |
+| Rótulo da duração no card | "Duração" |
+| Título da tela do voo | "Voo de dd/mm/aaaa" |
+| Rótulos da tela do voo | "Data", "Hora de início", "Duração" |
+| Aviso da tela do voo | "Debriefing disponível em breve" |
+| Botão da tela do voo | "Voltar à lista" |
+| Itens da navegação | "Painel", "Voos" |
+
+- O erro não tem nova tentativa automática nem botão; a mensagem orienta a reabrir o app (HITL-1 do loop-005).
+- Falha numa nova busca com a lista já carregada (ex.: após uma sessão encerrar): a lista anterior é mantida e a falha só vai para o log. Após um erro na primeira carga, um encerramento de sessão posterior busca de novo e, se der certo, a lista substitui o erro.
+- Uma sessão encerrada em silêncio na abertura do app só aparece ao reabrir a lista.
 
 ### Painel de tempo real (UC-002)
 
@@ -95,6 +136,7 @@ Débitos (revisão do loop-002, sem decisão):
 - O produto suporta, por enquanto, só aeronaves de um motor (decisão do HITL-3 do loop-003). Por isso "Manete", "Mistura" e "RPM" não indicam o motor no rótulo.
 - A unidade é exibida como rótulo à parte, nunca dentro do valor.
 - Botões e ações usam verbos no infinitivo: "Iniciar", "Encerrar", "Selecionar", "Maximizar".
+- Exceção: itens de navegação usam o substantivo da seção, não um verbo ("Painel", "Voos"; loop-005). "Voltar à lista" segue a regra do verbo.
 
 ## Formatação de valores numéricos
 
@@ -124,3 +166,18 @@ Regras gerais:
 - Valor ausente ou inválido (`null`, `NaN`, `Infinity`) é exibido como "—".
 - Os sinais de arfagem e rolagem são corrigidos só na exibição; o sentido foi confirmado no teste manual no Windows com o MSFS 2024 (loop-002).
 - Débito: o arredondamento da velocidade vertical é assimétrico perto de zero (+5 fpm vira "+10", −5 fpm vira "0").
+
+## Formatação de data, hora e duração do voo
+
+Regras da lista de voos e da tela do voo (UC-004):
+
+| Valor | Formato | Exemplo |
+|---|---|---|
+| Data de início | dd/mm/aaaa, no fuso local da máquina | `17/11/2026` |
+| Hora de início | HH:mm, 24 h, sem segundos, no fuso local | `09:05`, `00:30` |
+| Duração | h:mm:ss, horas sem limite (sem zero à esquerda nas horas) | `1:12:05`, `26:00:00`, `0:00:00` |
+
+- A duração é a diferença entre o fim e o início da sessão; duração zero aparece "0:00:00".
+- A hora de fim não aparece na lista nem na tela do voo.
+- Valor inválido, hora de fim ausente ou duração negativa aparecem como "—".
+- A duração por extenso do rótulo acessível está em "Navegação, lista de voos e tela do voo", na seção de acessibilidade.

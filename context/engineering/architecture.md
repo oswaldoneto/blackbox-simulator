@@ -3,7 +3,7 @@
 > Propósito: Visão geral da arquitetura no modelo C4, diretrizes arquiteturais e registro das decisões.
 > Atualizar quando: uma decisão arquitetural for tomada ou revista.
 > Relacionados: [domain_model.md](domain_model.md), [code_conventions.md](code_conventions.md)
-> Última atualização: 2026-11-17 · loop-004
+> Última atualização: 2026-11-17 · loop-005
 
 ## Visão geral
 
@@ -56,7 +56,8 @@ C4Container
 - O banco SQLite fica em `%APPDATA%\BlackboxSimulator\data.db` para garantir persistência entre atualizações do instalador. Esse caminho é resolvido por `app.getPath('appData')` mais a pasta fixa `BlackboxSimulator`, e por isso não depende do nome do app nem do instalador.
 - O produto suporta, por enquanto, só aeronaves de um motor (decisão do HITL-3 do loop-003). A coleta lê o motor 1 do simulador (sufixo `:1` nas SimVars de motor e `_1` nos slugs); multimotor está fora do escopo.
 - Os identificadores dos parâmetros (slugs) vêm de uma fonte única, `PARAMETER_IDS` em `src/shared/parameter-ids.ts`, usada pelo main e pelo renderer. Só os seeds das migrations SQL repetem os slugs, porque o SQL não importa a constante TypeScript.
-- O renderer não mantém estado de sessão próprio: a fonte da verdade sobre sessão, conexão e leituras é o main, consultado por invoke ou recebido por push. O renderer pode guardar estado de exibição temporário, derivado do que o main enviou, enquanto a tela estiver aberta: a sessão encerrada, os últimos valores congelados e o indicador `semDados` (ADR-007). Esse estado não é persistido nem enviado de volta ao main. Desde o loop-004, inclui a sessão que o renderer marca como encerrada ao receber `session:end-failed` (`status: 'encerrada'`, `encerradaEm: null`): no banco ela continua ativa até a próxima abertura do app (ADR-009).
+- O renderer não mantém estado de sessão próprio: a fonte da verdade sobre sessão, conexão e leituras é o main, consultado por invoke ou recebido por push. O renderer pode guardar estado de exibição temporário, derivado do que o main enviou, enquanto a tela estiver aberta: a sessão encerrada, os últimos valores congelados e o indicador `semDados` (ADR-007). Esse estado não é persistido nem enviado de volta ao main. Desde o loop-004, inclui a sessão que o renderer marca como encerrada ao receber `session:end-failed` (`status: 'encerrada'`, `encerradaEm: null`): no banco ela continua ativa até a próxima abertura do app (ADR-009). Desde o loop-005, inclui também a tela atual (`painel`, `voos` ou `voo`) e a `Sessao` aberta na tela do voo, vinda da lista (ADR-010).
+- A janela principal (`BrowserWindow` em `src/main/index.ts`) tem `minWidth: 640` e `minHeight: 480` (HITL-3 do loop-005), para a barra superior não cortar o indicador de estado.
 - No máximo uma sessão ativa na memória do main (`CollectionService.sessaoAtiva`); `session:get-active` lê essa memória, não o banco. No banco a regra é eventual: uma falha ao gravar o encerramento seguida de religamento deixa duas sessões ativas, e a rotina `encerrarSessoesAtivasAnteriores`, chamada a cada abertura logo depois das migrations, encerra todas menos a mais recente (ADR-009). Não há restrição no banco que impeça duas ativas (ver "Em aberto").
 
 ## Canais IPC
@@ -69,6 +70,7 @@ Todos definidos em `src/shared/ipc-channels.ts` e expostos pelo preload (ADR-005
 | `session:started` | push | main → renderer | `Sessao`; emitido também quando a sessão restaurada é confirmada na abertura (loop-004) | loop-001 |
 | `session:ended` | push | main → renderer | `Sessao` como ficou gravada (status `encerrada`, `encerradaEm` preenchido). Emitido pelo encerramento ao vivo só depois de gravado no banco (loop-004). O encerramento na abertura não emite | loop-001 |
 | `session:end-failed` | push | main → renderer | `Sessao` como estava na memória (ainda `ativa`, `encerradaEm: null`), quando a gravação do encerramento ao vivo falha. O renderer a mostra como encerrada (estado de exibição) com notificação de erro | loop-004 |
+| `session:list-ended` | invoke | renderer → main | retorna `Sessao[]` com as sessões encerradas (`listarSessoesEncerradas`: `WHERE status = 'encerrada' ORDER BY iniciada_em DESC, rowid DESC`), da mais recente para a mais antiga; a ativa não entra. Lê do banco. Numa falha, o handler loga e rejeita. Exposto como `listSessoesEncerradas()` (UC-004) | loop-005 |
 | `parameter:list-active` | invoke | renderer → main | retorna `ParametroDeVoo[]` com `ativo = true` (RN-002) | loop-002 |
 | `parameter:readings` | push | main → renderer | `PacoteDeLeituras`, um por ciclo de coleta (1 s), só com sessão ativa, sem os parâmetros N/A da sessão | loop-002 |
 | `connection:get-state` | invoke | renderer → main | retorna `EstadoConexao` | loop-002 |
@@ -184,6 +186,27 @@ Consequências:
 
 ---
 
+ADR-010
+Status: aceita (loop-005)
+Contexto: O UC-004 traz duas telas novas além do painel de tempo real: a lista de voos e a tela provisória do voo (o debriefing vem com o UC-005). A coleta continua com a lista aberta (RN-006), a barra de estado precisa ficar visível em todas as telas, e os hooks que ouvem push do main não podem perder eventos ao trocar de tela.
+Decisão:
+- Navegação por estado no `App.tsx`, sem biblioteca de roteamento: a tela atual é `painel`, `voos` ou `voo` (com a `Sessao` aberta). É estado de exibição do renderer (ver Diretrizes).
+- Os hooks de sessão, conexão, parâmetros, leituras e notificação ficam no topo do `App` e nunca são desmontados ao trocar de tela, para o painel continuar ao vivo e nenhum push se perder.
+- `StatusBar` e `Notification` aparecem em todas as telas. A `StatusBar` ganha um `<nav>` ("Navegação principal") com os botões "Painel" e "Voos", logo à direita do nome do app, com `aria-current` na tela atual.
+- `session:started` leva sempre de volta ao painel, de qualquer tela (UC-002 inalterado). `session:ended` não troca de tela.
+- A lista é buscada a cada abertura da tela (`useSessoesEncerradas`, chamado pela página da lista) e de novo a cada `session:ended`; `session:end-failed` não dispara nova busca. Respostas antigas são descartadas. Erro na primeira carga mostra mensagem, sem nova tentativa automática; erro numa nova busca com a lista já carregada mantém a lista anterior e só loga; um `session:ended` posterior com busca bem-sucedida troca o erro pela lista. Indicador de carregamento só depois de 500 ms (`CARREGANDO_LIMITE_MS`).
+- O encerramento silencioso na abertura (ADR-009) não emite push: uma sessão encerrada assim só aparece na lista quando ela é reaberta.
+- Foco ao trocar de tela (HITL-3): vai para o título da tela nova. O painel tem um h1 visualmente oculto "Painel de tempo real" (`tabIndex={-1}`), focado ao chegar pela barra ou pela volta automática vinda de outra tela; a carga inicial não move o foco. Ao abrir um voo, o foco vai para "Voltar à lista", com `aria-describedby` apontando para o título e o aviso. Ao voltar à lista, o foco volta ao card de origem; sem card de origem, ou se ele sumiu, vai para o título "Voos". Esc na tela do voo volta à lista.
+Consequências:
+- Sem dependência nova e sem URL; não há histórico de navegação (voltar do navegador) nem link direto para uma tela.
+- A lista é relida do banco a cada abertura, sem cache; com volume crescente pode ficar lenta (ver "Em aberto").
+- Esc é ouvido no `document` inteiro enquanto a tela do voo está aberta; pode conflitar com atalhos futuros.
+- Ao voltar do voo, o foco fica no `body` enquanto a lista é buscada de novo, e permanece lá se a busca falhar (débito da rodada curta do HITL-3).
+- Clicar no botão da tela atual não dá retorno visual (débito).
+- O UC-005 vai preencher a tela do voo, hoje provisória.
+
+---
+
 ## Em aberto
 
 Levantado na revisão do loop-003 (3.2 e 3.4); aguarda decisão humana.
@@ -195,6 +218,11 @@ Levantado no loop-004 (3.1 e 3.4); débito aceito no HITL-3, aguarda decisão hu
 
 - No máximo uma sessão ativa no banco: hoje a regra é eventual e reparada a cada abertura (Diretrizes, ADR-009). Pergunta da 3.4: garantir num loop futuro com uma restrição no banco, por exemplo um índice único parcial (`WHERE status = 'ativa'`), e decidir o que fazer no religamento quando a sessão anterior não pôde ser encerrada.
 - `lastEngineCombustion` (`simconnect-client.ts`) não zera na queda de conexão (anterior ao loop-004). Por isso, simulador fechado com o motor ligado e outro voo carregado já com o motor ligado continuam na mesma sessão; registrado como limitação conhecida no HITL-3. Decidir se a queda passa a zerar o estado do motor.
+
+Levantado no loop-005 (1.2, 2.1 e 3.1); débito aceito, aguarda decisão humana.
+
+- Volume da lista de voos: `session:list-ended` devolve todas as sessões encerradas, sem paginação, e a consulta (`WHERE status = 'encerrada' ORDER BY iniciada_em DESC, rowid DESC`) não tem índice próprio. Com o volume crescente previsto na RN-005, decidir paginação e um índice para a consulta na tabela `sessoes`. Pode virar item de backlog.
+- A ordenação por `iniciada_em` compara texto e depende do formato ISO 8601 UTC gravado; mudar o formato quebra a ordem.
 
 Débitos técnicos ligados à arquitetura (aceitos no loop-003):
 - Falha numa migration interrompe a inicialização e o app não abre; o erro aparece só no log (HITL-2: mostrar mensagem ao piloto num loop futuro).

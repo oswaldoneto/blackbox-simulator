@@ -102,6 +102,23 @@ export function buscarSessaoAtiva(): Sessao | null {
 }
 
 /**
+ * Sessões encerradas (UC-004), da mais recente para a mais antiga por `iniciada_em`;
+ * no empate, a gravada por último vem antes. A sessão ativa não entra.
+ */
+export function listarSessoesEncerradas(): Sessao[] {
+  const db = getDatabase()
+  const rows = db
+    .prepare(
+      `SELECT * FROM sessoes
+       WHERE status = 'encerrada'
+       ORDER BY iniciada_em DESC, rowid DESC`
+    )
+    .all() as SessaoRow[]
+
+  return rows.map(rowToSessao)
+}
+
+/**
  * Encerra uma sessão ativa: grava `encerrada_em` e o status `encerrada` (UC-003).
  * Só muda sessão ativa; lança erro se nenhuma linha mudar (sessão inexistente ou já
  * encerrada). Devolve a sessão como ficou gravada.

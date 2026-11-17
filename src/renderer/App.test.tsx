@@ -1,7 +1,9 @@
 import React from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest'
 import { render, screen, cleanup, act, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { App } from './App'
+import { formatarDataDoVoo, formatarHoraDoVoo } from './components/format-flight-time'
 import type { ElectronApi } from './electron-api'
 import type { EstadoConexao, PacoteDeLeituras, ParametroDeVoo, Sessao } from '../shared/types'
 
@@ -13,6 +15,7 @@ interface FakeApiOptions {
   sessao?: Sessao | null
   conexao?: EstadoConexao
   parametros?: ParametroDeVoo[]
+  sessoesEncerradas?: Sessao[]
 }
 
 interface FakeApi {
@@ -42,6 +45,7 @@ function createFakeApi(opts: FakeApiOptions = {}): FakeApi {
 
   const api: ElectronApi = {
     getActiveSessao: vi.fn().mockResolvedValue(opts.sessao ?? null),
+    listSessoesEncerradas: vi.fn().mockResolvedValue(opts.sessoesEncerradas ?? []),
     onSessionStarted: (cb) => subscribe(started, cb),
     onSessionEnded: (cb) => subscribe(ended, cb),
     onSessionEndFailed: (cb) => subscribe(endFailed, cb),
@@ -255,6 +259,8 @@ describe('App', () => {
       expect(fake.api.getActiveSessao).toHaveBeenCalledTimes(1)
       expect(fake.api.listActiveParametros).toHaveBeenCalledTimes(1)
       expect(fake.api.getConnectionState).toHaveBeenCalledTimes(1)
+      // A lista de voos só é lida quando o piloto abre "Voos" (UC-004).
+      expect(fake.api.listSessoesEncerradas).not.toHaveBeenCalled()
     })
   })
 
@@ -935,6 +941,497 @@ describe('App', () => {
       expect(notificacao('Coleta iniciada')).toBeDefined()
       avancar(1)
       expect(notificacao('Coleta iniciada')).toBeUndefined()
+    })
+  })
+
+  // ---------- UC-004: lista de voos, tela provisória e navegação ----------
+
+  describe('UC-004: selecionar voo', () => {
+    const VAZIO = 'Nenhum voo registrado. Inicie o simulador e ligue o motor para começar.'
+    const SUCESSO_ENCERRAMENTO = 'Sessão encerrada. Dados salvos.'
+    const ERRO_ENCERRAMENTO =
+      'Não foi possível salvar o encerramento. Os dados do voo foram mantidos e o encerramento será concluído na próxima abertura.'
+
+    function voo(id: string, iniciadaEm: string, encerradaEm: string): Sessao {
+      return makeSessao({ id, iniciadaEm, encerradaEm, status: 'encerrada' })
+    }
+
+    // Na ordem do main (iniciada_em DESC).
+    const VOO_RECENTE = voo('v2', '2026-11-17T13:05:00.000Z', '2026-11-17T14:20:30.000Z')
+    const VOO_ANTIGO = voo('v1', '2026-11-10T09:00:00.000Z', '2026-11-10T09:00:00.000Z')
+
+    function rotulo(s: Sessao, duracao: string): string {
+      return `Voo de ${formatarDataDoVoo(s.iniciadaEm)} às ${formatarHoraDoVoo(s.iniciadaEm)}, duração ${duracao}`
+    }
+
+    function botaoNav(nome: 'Painel' | 'Voos'): HTMLElement {
+      return within(screen.getByRole('navigation', { name: 'Navegação principal' })).getByRole(
+        'button',
+        { name: nome }
+      )
+    }
+
+    function notificacao(texto: string): HTMLElement | undefined {
+      return screen.queryAllByRole('status').find((el) => el.textContent === texto)
+    }
+
+    async function abrirVoos(): Promise<void> {
+      await userEvent.click(botaoNav('Voos'))
+      await flush()
+    }
+
+    function telaDoVoo(s: Sessao): HTMLElement | null {
+      return screen.queryByRole('heading', { level: 1, name: `Voo de ${formatarDataDoVoo(s.iniciadaEm)}` })
+    }
+
+    function telaDaLista(): HTMLElement | null {
+      return screen.queryByRole('heading', { level: 1, name: 'Voos' })
+    }
+
+    it('deve abrir no painel, com "Painel" marcado como tela atual, sem ler a lista de voos', async () => {
+      const fake = createFakeApi({ sessao: null })
+      await renderApp(fake)
+
+      expect(botaoNav('Painel')).toHaveAttribute('aria-current', 'page')
+      expect(botaoNav('Voos')).not.toHaveAttribute('aria-current')
+      expect(screen.getByText(ORIENTACAO)).toBeInTheDocument()
+      expect(fake.api.listSessoesEncerradas).not.toHaveBeenCalled()
+    })
+
+    it('CA-004-1: deve exibir os voos encerrados em ordem cronológica inversa, com data, hora e duração', async () => {
+      const fake = createFakeApi({ sessao: null, sessoesEncerradas: [VOO_RECENTE, VOO_ANTIGO] })
+      await renderApp(fake)
+
+      await abrirVoos()
+
+      expect(fake.api.listSessoesEncerradas).toHaveBeenCalledOnce()
+      expect(telaDaLista()).toBeInTheDocument()
+      expect(botaoNav('Voos')).toHaveAttribute('aria-current', 'page')
+      expect(botaoNav('Painel')).not.toHaveAttribute('aria-current')
+      const cards = within(screen.getByRole('list')).getAllByRole('button')
+      expect(cards.map((c) => c.getAttribute('aria-label'))).toEqual([
+        rotulo(VOO_RECENTE, '1 hora, 15 minutos e 30 segundos'),
+        rotulo(VOO_ANTIGO, '0 segundos'),
+      ])
+      expect(screen.queryByText(ORIENTACAO)).not.toBeInTheDocument()
+    })
+
+    it('CA-004-3: deve exibir o estado vazio quando não há voos encerrados', async () => {
+      await renderApp(createFakeApi({ sessao: null, sessoesEncerradas: [] }))
+
+      await abrirVoos()
+
+      expect(screen.getByText(VAZIO)).toBeInTheDocument()
+    })
+
+    it('CA-004-3: deve exibir o estado vazio quando só existe a sessão ativa, e não mostrar a ativa', async () => {
+      const ativa = makeSessao({ id: 'ativa' })
+      await renderApp(createFakeApi({ sessao: ativa, sessoesEncerradas: [] }))
+
+      await abrirVoos()
+
+      expect(screen.getByText(VAZIO)).toBeInTheDocument()
+      expect(screen.queryByRole('list')).not.toBeInTheDocument()
+    })
+
+    it('deve exibir a mensagem de erro quando a primeira carga da lista falha', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const fake = createFakeApi({ sessao: null })
+      fake.api.listSessoesEncerradas = vi.fn().mockRejectedValue(new Error('ipc'))
+      await renderApp(fake)
+
+      await abrirVoos()
+      await flush()
+
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Não foi possível carregar a lista de voos. Feche e abra o aplicativo para tentar de novo.'
+      )
+      expect(consoleError).toHaveBeenCalled()
+      consoleError.mockRestore()
+    })
+
+    it('CA-004-2: deve abrir a tela provisória do voo no clique do card, com data, hora, duração e aviso', async () => {
+      await renderApp(createFakeApi({ sessao: null, sessoesEncerradas: [VOO_RECENTE, VOO_ANTIGO] }))
+      await abrirVoos()
+
+      await userEvent.click(screen.getByRole('button', { name: rotulo(VOO_RECENTE, '1 hora, 15 minutos e 30 segundos') }))
+
+      expect(telaDoVoo(VOO_RECENTE)).toBeInTheDocument()
+      expect(telaDaLista()).not.toBeInTheDocument()
+      expect(screen.getByText(formatarHoraDoVoo(VOO_RECENTE.iniciadaEm), { selector: 'dd' })).toBeInTheDocument()
+      expect(screen.getByText('1:15:30', { selector: 'dd' })).toBeInTheDocument()
+      expect(screen.getByText('Debriefing disponível em breve')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Voltar à lista' })).toHaveFocus()
+      // A tela do voo pertence à seção "Voos".
+      expect(botaoNav('Voos')).toHaveAttribute('aria-current', 'page')
+    })
+
+    it('deve voltar à lista pelo botão "Voltar à lista", com foco no card de origem', async () => {
+      await renderApp(createFakeApi({ sessao: null, sessoesEncerradas: [VOO_RECENTE, VOO_ANTIGO] }))
+      await abrirVoos()
+      await userEvent.click(screen.getByRole('button', { name: rotulo(VOO_ANTIGO, '0 segundos') }))
+
+      await userEvent.click(screen.getByRole('button', { name: 'Voltar à lista' }))
+      await flush()
+
+      expect(telaDaLista()).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: rotulo(VOO_ANTIGO, '0 segundos') })).toHaveFocus()
+    })
+
+    it('deve percorrer os voos com Tab, abrir com Enter e voltar à lista com Esc, com foco no card de origem', async () => {
+      await renderApp(createFakeApi({ sessao: null, sessoesEncerradas: [VOO_RECENTE, VOO_ANTIGO] }))
+      await abrirVoos()
+      const cardAntigo = screen.getByRole('button', { name: rotulo(VOO_ANTIGO, '0 segundos') })
+      const cardRecente = screen.getByRole('button', { name: rotulo(VOO_RECENTE, '1 hora, 15 minutos e 30 segundos') })
+
+      // O foco está no título "Voos" depois do clique; o Tab segue para os cards.
+      await userEvent.tab()
+      expect(cardRecente).toHaveFocus()
+      await userEvent.tab()
+      expect(cardAntigo).toHaveFocus()
+      await userEvent.keyboard('{Enter}')
+
+      expect(telaDoVoo(VOO_ANTIGO)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Voltar à lista' })).toHaveFocus()
+
+      await userEvent.keyboard('{Escape}')
+      await flush()
+
+      expect(telaDaLista()).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: rotulo(VOO_ANTIGO, '0 segundos') })).toHaveFocus()
+    })
+
+    it('deve voltar à lista pelo botão "Voos" da barra quando está na tela do voo', async () => {
+      await renderApp(createFakeApi({ sessao: null, sessoesEncerradas: [VOO_RECENTE] }))
+      await abrirVoos()
+      await userEvent.click(screen.getByRole('button', { name: rotulo(VOO_RECENTE, '1 hora, 15 minutos e 30 segundos') }))
+
+      await abrirVoos()
+
+      expect(telaDaLista()).toBeInTheDocument()
+      expect(telaDoVoo(VOO_RECENTE)).not.toBeInTheDocument()
+    })
+
+    it('deve voltar ao painel pelo botão "Painel"', async () => {
+      await renderApp(createFakeApi({ sessao: null, sessoesEncerradas: [VOO_RECENTE] }))
+      await abrirVoos()
+
+      await userEvent.click(botaoNav('Painel'))
+
+      expect(screen.getByText(ORIENTACAO)).toBeInTheDocument()
+      expect(telaDaLista()).not.toBeInTheDocument()
+      expect(botaoNav('Painel')).toHaveAttribute('aria-current', 'page')
+    })
+
+    it('não deve recarregar a lista ao clicar de novo em "Voos" já estando nela', async () => {
+      const fake = createFakeApi({ sessao: null, sessoesEncerradas: [VOO_RECENTE] })
+      await renderApp(fake)
+      await abrirVoos()
+
+      await abrirVoos()
+
+      expect(fake.api.listSessoesEncerradas).toHaveBeenCalledOnce()
+    })
+
+    it('deve buscar a lista de novo a cada abertura de "Voos"', async () => {
+      const fake = createFakeApi({ sessao: null, sessoesEncerradas: [VOO_RECENTE] })
+      await renderApp(fake)
+      await abrirVoos()
+      await userEvent.click(botaoNav('Painel'))
+
+      await abrirVoos()
+
+      expect(fake.api.listSessoesEncerradas).toHaveBeenCalledTimes(2)
+    })
+
+    it('deve manter a barra de estado visível nas 3 telas', async () => {
+      await renderApp(
+        createFakeApi({ sessao: makeSessao(), conexao: 'conectado', sessoesEncerradas: [VOO_RECENTE] })
+      )
+      expect(within(statusBar()).getByText('Sessão ativa')).toBeInTheDocument()
+
+      await abrirVoos()
+      expect(within(statusBar()).getByText('Sessão ativa')).toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('button', { name: rotulo(VOO_RECENTE, '1 hora, 15 minutos e 30 segundos') }))
+      expect(telaDoVoo(VOO_RECENTE)).toBeInTheDocument()
+      expect(within(statusBar()).getByText('Sessão ativa')).toBeInTheDocument()
+    })
+
+    it('deve atualizar a barra de estado com a conexão mesmo fora do painel', async () => {
+      const fake = createFakeApi({ sessao: makeSessao(), conexao: 'conectado', sessoesEncerradas: [] })
+      await renderApp(fake)
+      await abrirVoos()
+
+      fake.emitConnection('desconectado')
+
+      expect(within(statusBar()).getByText('Sem conexão')).toBeInTheDocument()
+    })
+
+    it('deve mostrar no painel os valores ao vivo que chegaram enquanto a lista estava aberta', async () => {
+      const fake = createFakeApi({ sessao: makeSessao(), sessoesEncerradas: [] })
+      await renderApp(fake)
+      fake.emitReadings(pacote('sess-1', 4500))
+
+      await abrirVoos()
+      expect(screen.queryByRole('region', { name: 'Painel de tempo real' })).not.toBeInTheDocument()
+      fake.emitReadings(pacote('sess-1', 4620))
+      await userEvent.click(botaoNav('Painel'))
+
+      expect(within(grupoDe('Altitude MSL')).getByText('4.620')).toBeInTheDocument()
+      expect(avisoSemSinal()).toBeUndefined()
+    })
+
+    it('deve voltar ao painel com "Coleta iniciada" quando a sessão começa com a lista aberta', async () => {
+      const fake = createFakeApi({ sessao: null, sessoesEncerradas: [VOO_RECENTE] })
+      await renderApp(fake)
+      await abrirVoos()
+
+      fake.emitSessionStarted(makeSessao({ id: 'sess-2' }))
+
+      expect(telaDaLista()).not.toBeInTheDocument()
+      expect(screen.getByRole('region', { name: 'Painel de tempo real' })).toBeInTheDocument()
+      expect(botaoNav('Painel')).toHaveAttribute('aria-current', 'page')
+      expect(notificacao('Coleta iniciada')).toBeDefined()
+    })
+
+    it('deve voltar ao painel com "Coleta iniciada" quando a sessão começa com a tela do voo aberta', async () => {
+      const fake = createFakeApi({ sessao: null, sessoesEncerradas: [VOO_RECENTE] })
+      await renderApp(fake)
+      await abrirVoos()
+      await userEvent.click(screen.getByRole('button', { name: rotulo(VOO_RECENTE, '1 hora, 15 minutos e 30 segundos') }))
+
+      fake.emitSessionStarted(makeSessao({ id: 'sess-2' }))
+
+      expect(telaDoVoo(VOO_RECENTE)).not.toBeInTheDocument()
+      expect(screen.getByRole('region', { name: 'Painel de tempo real' })).toBeInTheDocument()
+      expect(notificacao('Coleta iniciada')).toBeDefined()
+    })
+
+    it('deve continuar na lista, atualizá-la e notificar quando a sessão encerra com a lista aberta', async () => {
+      const ativa = makeSessao({ id: 'sess-1', iniciadaEm: '2026-11-17T15:00:00.000Z' })
+      const encerrada = { ...ativa, status: 'encerrada' as const, encerradaEm: '2026-11-17T15:45:00.000Z' }
+      const fake = createFakeApi({ sessao: ativa, sessoesEncerradas: [VOO_RECENTE] })
+      await renderApp(fake)
+      await abrirVoos()
+      ;(fake.api.listSessoesEncerradas as ReturnType<typeof vi.fn>).mockResolvedValue([
+        encerrada,
+        VOO_RECENTE,
+      ])
+
+      fake.emitSessionEnded(encerrada)
+      await flush()
+
+      expect(telaDaLista()).toBeInTheDocument()
+      expect(fake.api.listSessoesEncerradas).toHaveBeenCalledTimes(2)
+      expect(within(screen.getByRole('list')).getAllByRole('button')[0]).toHaveAccessibleName(
+        rotulo(encerrada, '45 minutos')
+      )
+      expect(notificacao(SUCESSO_ENCERRAMENTO)).toBeDefined()
+    })
+
+    it('deve continuar na tela do voo quando a sessão encerra', async () => {
+      const ativa = makeSessao()
+      const fake = createFakeApi({ sessao: ativa, sessoesEncerradas: [VOO_RECENTE] })
+      await renderApp(fake)
+      await abrirVoos()
+      await userEvent.click(screen.getByRole('button', { name: rotulo(VOO_RECENTE, '1 hora, 15 minutos e 30 segundos') }))
+
+      fake.emitSessionEnded(encerrar(ativa))
+
+      expect(telaDoVoo(VOO_RECENTE)).toBeInTheDocument()
+      expect(notificacao(SUCESSO_ENCERRAMENTO)).toBeDefined()
+    })
+
+    it('deve continuar na lista, sem nova busca, quando a gravação do encerramento falha', async () => {
+      const ativa = makeSessao()
+      const fake = createFakeApi({ sessao: ativa, sessoesEncerradas: [VOO_RECENTE] })
+      await renderApp(fake)
+      await abrirVoos()
+
+      fake.emitSessionEndFailed(ativa)
+      await flush()
+
+      expect(telaDaLista()).toBeInTheDocument()
+      expect(fake.api.listSessoesEncerradas).toHaveBeenCalledOnce()
+      expect(notificacao(ERRO_ENCERRAMENTO)).toBeDefined()
+    })
+
+    it('deve continuar na tela do voo quando a gravação do encerramento falha', async () => {
+      const ativa = makeSessao()
+      const fake = createFakeApi({ sessao: ativa, sessoesEncerradas: [VOO_RECENTE] })
+      await renderApp(fake)
+      await abrirVoos()
+      await userEvent.click(screen.getByRole('button', { name: rotulo(VOO_RECENTE, '1 hora, 15 minutos e 30 segundos') }))
+
+      fake.emitSessionEndFailed(ativa)
+
+      expect(telaDoVoo(VOO_RECENTE)).toBeInTheDocument()
+      expect(notificacao(ERRO_ENCERRAMENTO)).toBeDefined()
+    })
+
+    // ---------- foco ao trocar de tela (HITL-3 do loop-005) ----------
+
+    function tituloPainel(): HTMLElement {
+      return screen.getByRole('heading', { level: 1, name: 'Painel de tempo real' })
+    }
+
+    it('não deve mover o foco na carga inicial do app', async () => {
+      await renderApp(createFakeApi({ sessao: makeSessao(), sessoesEncerradas: [VOO_RECENTE] }))
+
+      expect(tituloPainel()).toBeInTheDocument()
+      expect(tituloPainel()).not.toHaveFocus()
+      expect(document.body).toHaveFocus()
+    })
+
+    it('deve ter no painel um título h1 visualmente oculto "Painel de tempo real", focável só por script', async () => {
+      await renderApp(createFakeApi({ sessao: null }))
+
+      const titulo = tituloPainel()
+      expect(titulo).toHaveAttribute('tabindex', '-1')
+      const estilo = titulo.getAttribute('style') ?? ''
+      expect(estilo).toContain('position: absolute')
+      expect(estilo).toContain('width: 1px')
+      expect(estilo).toContain('height: 1px')
+      expect(estilo).toContain('overflow: hidden')
+    })
+
+    it('deve pôr o foco no título "Voos" ao ir para a lista pela barra', async () => {
+      await renderApp(createFakeApi({ sessao: null, sessoesEncerradas: [VOO_RECENTE] }))
+
+      await abrirVoos()
+
+      expect(telaDaLista()).toHaveFocus()
+    })
+
+    it('deve pôr o foco no título "Voos" ao ir para a lista pela barra estando na tela do voo', async () => {
+      await renderApp(createFakeApi({ sessao: null, sessoesEncerradas: [VOO_RECENTE] }))
+      await abrirVoos()
+      await userEvent.click(
+        screen.getByRole('button', { name: rotulo(VOO_RECENTE, '1 hora, 15 minutos e 30 segundos') })
+      )
+
+      await abrirVoos()
+
+      expect(telaDaLista()).toHaveFocus()
+    })
+
+    it('deve pôr o foco no título oculto do painel ao ir para o painel pela barra', async () => {
+      await renderApp(createFakeApi({ sessao: null, sessoesEncerradas: [VOO_RECENTE] }))
+      await abrirVoos()
+
+      await userEvent.click(botaoNav('Painel'))
+
+      expect(tituloPainel()).toHaveFocus()
+    })
+
+    it('deve pôr o foco no título oculto do painel ao ir para o painel pela barra estando na tela do voo', async () => {
+      await renderApp(createFakeApi({ sessao: null, sessoesEncerradas: [VOO_RECENTE] }))
+      await abrirVoos()
+      await userEvent.click(
+        screen.getByRole('button', { name: rotulo(VOO_RECENTE, '1 hora, 15 minutos e 30 segundos') })
+      )
+
+      await userEvent.click(botaoNav('Painel'))
+
+      expect(tituloPainel()).toHaveFocus()
+    })
+
+    it('não deve mover o foco ao clicar em "Painel" já estando no painel', async () => {
+      await renderApp(createFakeApi({ sessao: null }))
+
+      await userEvent.click(botaoNav('Painel'))
+
+      expect(botaoNav('Painel')).toHaveFocus()
+      expect(tituloPainel()).not.toHaveFocus()
+    })
+
+    it('deve pôr o foco no título oculto do painel na volta automática vinda da lista (session:started)', async () => {
+      const fake = createFakeApi({ sessao: null, sessoesEncerradas: [VOO_RECENTE] })
+      await renderApp(fake)
+      await abrirVoos()
+
+      fake.emitSessionStarted(makeSessao({ id: 'sess-2' }))
+
+      expect(tituloPainel()).toHaveFocus()
+    })
+
+    it('deve pôr o foco no título oculto do painel na volta automática vinda da tela do voo (session:started)', async () => {
+      const fake = createFakeApi({ sessao: null, sessoesEncerradas: [VOO_RECENTE] })
+      await renderApp(fake)
+      await abrirVoos()
+      await userEvent.click(
+        screen.getByRole('button', { name: rotulo(VOO_RECENTE, '1 hora, 15 minutos e 30 segundos') })
+      )
+      expect(screen.getByRole('button', { name: 'Voltar à lista' })).toHaveFocus()
+
+      fake.emitSessionStarted(makeSessao({ id: 'sess-2' }))
+
+      expect(tituloPainel()).toHaveFocus()
+      expect(document.body).not.toHaveFocus()
+    })
+
+    it('não deve roubar o foco quando session:started chega com o painel já aberto', async () => {
+      const fake = createFakeApi({ sessao: null })
+      await renderApp(fake)
+      botaoNav('Voos').focus()
+
+      fake.emitSessionStarted(makeSessao({ id: 'sess-2' }))
+
+      expect(botaoNav('Voos')).toHaveFocus()
+      expect(tituloPainel()).not.toHaveFocus()
+    })
+
+    it('não deve roubar o foco quando session:started chega depois de voltar ao painel pela barra', async () => {
+      const fake = createFakeApi({ sessao: null, sessoesEncerradas: [VOO_RECENTE] })
+      await renderApp(fake)
+      await abrirVoos()
+      await userEvent.click(botaoNav('Painel'))
+      botaoNav('Voos').focus()
+
+      fake.emitSessionStarted(makeSessao({ id: 'sess-2' }))
+
+      expect(botaoNav('Voos')).toHaveFocus()
+    })
+
+    it('deve pôr o foco no título "Voos" ao voltar da tela do voo quando o card de origem não existe mais', async () => {
+      const fake = createFakeApi({ sessao: null, sessoesEncerradas: [VOO_RECENTE, VOO_ANTIGO] })
+      await renderApp(fake)
+      await abrirVoos()
+      await userEvent.click(screen.getByRole('button', { name: rotulo(VOO_ANTIGO, '0 segundos') }))
+      ;(fake.api.listSessoesEncerradas as ReturnType<typeof vi.fn>).mockResolvedValue([VOO_RECENTE])
+
+      await userEvent.click(screen.getByRole('button', { name: 'Voltar à lista' }))
+      await flush()
+
+      expect(telaDaLista()).toHaveFocus()
+      expect(
+        screen.queryByRole('button', { name: rotulo(VOO_ANTIGO, '0 segundos') })
+      ).not.toBeInTheDocument()
+    })
+
+    it('deve descrever "Voltar à lista" pelo título do voo e pelo aviso', async () => {
+      await renderApp(createFakeApi({ sessao: null, sessoesEncerradas: [VOO_RECENTE] }))
+      await abrirVoos()
+      await userEvent.click(
+        screen.getByRole('button', { name: rotulo(VOO_RECENTE, '1 hora, 15 minutos e 30 segundos') })
+      )
+
+      const voltar = screen.getByRole('button', { name: 'Voltar à lista' })
+      expect(voltar).toHaveFocus()
+      expect(voltar).toHaveAccessibleDescription(
+        `Voo de ${formatarDataDoVoo(VOO_RECENTE.iniciadaEm)} Debriefing disponível em breve`
+      )
+    })
+
+    it('deve remover todos os listeners ao desmontar com a lista aberta', async () => {
+      const fake = createFakeApi({ sessao: makeSessao(), sessoesEncerradas: [VOO_RECENTE] })
+      const { unmount } = await renderApp(fake)
+      await abrirVoos()
+
+      unmount()
+
+      expect(fake.totalListeners()).toBe(0)
     })
   })
 })

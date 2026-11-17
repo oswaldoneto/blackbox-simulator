@@ -3,7 +3,7 @@
 > Propósito: Convenções que os agentes de código devem seguir.
 > Atualizar quando: uma convenção for criada ou mudar, inclusive por uma lição aprendida.
 > Relacionados: [architecture.md](architecture.md)
-> Última atualização: 2026-11-17 · loop-004
+> Última atualização: 2026-11-17 · loop-005
 
 ## Linguagem e estilo
 
@@ -16,6 +16,8 @@
 ## Estilos e fontes
 
 - CSS em arquivo (ex.: `realtime-panel.css`, ao lado do componente) quando o estilo precisar de media query ou de regra que o estilo inline não expressa. No resto, estilo inline com os tokens de design.md.
+- Quando um elemento precisa de `:hover` ou `:focus-visible` (ex.: `flight-card.css`, `status-bar.css`, `flight-detail-page.css`, loop-005), a regra base da classe (cor, borda, fundo que a pseudo-classe altera) também vai para o CSS em arquivo. Estilo inline venceria a pseudo-classe.
+- Título acessível visualmente oculto (ex.: o h1 "Painel de tempo real" do painel, loop-005): hoje feito com estilo inline em `App.tsx` (ver "Em aberto").
 - Fontes IBM Plex Sans e IBM Plex Mono carregadas localmente pelos pacotes `@fontsource/ibm-plex-sans` e `@fontsource/ibm-plex-mono`, importados no renderer. Não usar Google Fonts nem outra fonte remota (design.md pede fonte local).
 
 ## Estrutura de pastas
@@ -29,7 +31,7 @@ src/
     index.ts      # Entry point do main
   renderer/       # Processo de renderização (React)
     components/   # Componentes React reutilizáveis e utilitários que só eles usam
-    pages/        # Telas da aplicação (uma pasta por tela; ainda não criada)
+    pages/        # Telas da aplicação (uma pasta por tela, CSS ao lado; ex.: flight-list/, flight-detail/)
     hooks/        # Custom hooks
     ipc/          # Chamadas IPC para o main (wrappers tipados)
     styles/       # CSS global (fontes, tokens)
@@ -45,6 +47,9 @@ src/
 - `shared/parameter-ids.ts` exporta também uma função pura (`isParametroId`); se funções puras são aceitas em `shared/` está em aberto (ver "Em aberto").
 
 - Utilitários de formatação e de derivação de estado de tela ficam ao lado do componente que os usa, em `components/` (ex.: `format-parameter-value.ts`, `panel-state.ts`). Hooks que falam com o main ficam em `hooks/`.
+- Utilitários de exibição usados por componentes e por páginas também ficam em `components/` (decisão do HITL-3 do loop-005). Ex.: `format-flight-time.ts`, usado por `flight-card.tsx` e por `flight-detail-page.tsx`.
+- Páginas (loop-005): uma pasta por tela em `pages/` (`pages/flight-list/flight-list-page.tsx`, `pages/flight-detail/flight-detail-page.tsx`), com o CSS e os testes ao lado. A troca de telas é feita no `App.tsx` (ADR-010 em architecture.md).
+- Formatação de data e hora (loop-005): `format-flight-time.ts` usa `Intl.DateTimeFormat('pt-BR')` no fuso local da máquina (data dd/mm/aaaa; hora HH:mm com `hourCycle: 'h23'`) e recebe um `timeZone` opcional, usado só pelos testes para fixar o fuso. A duração é calculada pelos instantes, não pelo relógio local.
 
 ## Nomes
 
@@ -75,6 +80,8 @@ src/
 - Tempo nos testes (loop-004):
   - Lógica medida pelo tempo das amostras (como o detector de encerramento) é uma função pura que recebe instantes explícitos (`timestamp` ISO 8601) em cada evento, sem timer nem `Date.now()` interno. Os testes passam os instantes à mão (ex.: 14 s não encerra, 15 s encerra), como em `detector-de-encerramento.test.ts`.
   - Prazos de relógio (`setTimeout`, como `VERIFICACAO_ABERTURA_MS` no `CollectionService` e os 4 s da notificação no renderer) são testados com fake timers do Vitest (`vi.useFakeTimers()` e avanço explícito do relógio).
+- Fuso nos testes (loop-005): testes de data e hora passam um `timeZone` fixo ao formatador (ex.: `'America/Sao_Paulo'`, `'UTC'`) para serem determinísticos. Não alterar `process.env.TZ`.
+- Fake da ponte: o fake de `window.electronApi` nos testes do renderer (ex.: `App.test.tsx`) ganha, na mesma entrega, cada função nova exposta pelo preload (ex.: `listSessoesEncerradas`, loop-005). Sem isso o `tsc` do renderer quebra.
 - `src/main/index.ts` não tem teste automatizado: a chamada da rotina de sessões antigas e a ligação dos eventos de encerramento e falha ao IPC foram conferidas no roteiro manual no Windows do loop-004 (v0.4.0, aprovado em 2026-11-17).
 
 ## Commits
@@ -139,6 +146,13 @@ Implementado no loop-003 (`src/main/db/migrator.ts`):
 - Saneamento de dados que precisa rodar a cada abertura não vai em migration (que roda uma vez só): vira função de repositório chamada em `index.ts` logo depois de `runMigrations()` e antes de criar o `CollectionService`. A rotina precisa ser idempotente, e uma falha nela só gera log, sem impedir o app de abrir. Exemplo: `encerrarSessoesAtivasAnteriores` (loop-004, ADR-009 em architecture.md), escolhida no HITL-1 no lugar de uma migration porque repara também as sessões que ficam ativas por falha ao gravar o encerramento.
 
 ## Em aberto
+
+Levantado no loop-005 (2.1, 2.2 e 3.2); débitos não bloqueantes, aguardam decisão humana.
+
+- Cálculo de horas, minutos e segundos repetido em `formatarDuracaoDoVoo` e `formatarDuracaoPorExtenso` (`format-flight-time.ts`).
+- `flight-card.tsx` compara o texto devolvido pelo formatador com a constante `DURACAO_INDISPONIVEL` para montar o `aria-label`. Alternativa levantada no 2.2: o formatador devolver `null` quando a duração não pode ser calculada.
+- Estilo "visualmente oculto" do título do painel é inline em `App.tsx`. Decidir se vira classe utilitária em CSS (ou componente) reutilizável.
+- Estilos de título e a família de fonte repetidos entre as páginas e componentes novos (3.2).
 
 Levantado na revisão do loop-004 (3.2); débitos não bloqueantes, aguardam decisão humana.
 

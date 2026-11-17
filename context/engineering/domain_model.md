@@ -3,7 +3,7 @@
 > Propósito: Entidades e dados que o produto trata, e como se relacionam.
 > Atualizar quando: uma entidade, atributo ou relacionamento mudar.
 > Relacionados: [../product/glossary.md](../product/glossary.md), [../product/business_rules.md](../product/business_rules.md)
-> Última atualização: 2026-11-17 · loop-004
+> Última atualização: 2026-11-17 · loop-005
 
 ## Entidades
 
@@ -15,10 +15,10 @@ Representa um voo completo, do momento em que o motor é ligado até o encerrame
 | id | UUID | Identificador único gerado automaticamente |
 | iniciadaEm | datetime (UTC) | Momento em que a coleta começou |
 | encerradaEm | datetime (UTC) \| null | Hora de fim da sessão; null se a sessão ainda está ativa. A origem depende de como a sessão foi encerrada (ver "Encerramento da sessão" abaixo) |
-| duracao | duration (s) | Calculado: encerradaEm − iniciadaEm; null enquanto ativa. Não é persistido. Inclui táxi e períodos sem sinal; o formato de exibição fica para o UC-004 |
-| aeronave | string | Nome da aeronave fornecido pelo simulador (ex.: "Cessna 172 Skyhawk") |
-| aerodromoOrigem | string \| null | Código ICAO ou nome do aeródromo de saída, se disponível no simulador |
-| aerodromoDestino | string \| null | Código ICAO ou nome do aeródromo de chegada, se disponível no simulador |
+| duracao | duration (s) | Calculado: encerradaEm − iniciadaEm; null enquanto ativa. Não é persistido. Inclui táxi e períodos sem sinal. Desde o loop-005 (UC-004), calculada no renderer e exibida como h:mm:ss, com horas sem limite (ex.: "0:00:00", "26:03:09"), pelos instantes UTC (não muda com o horário de verão); por extenso no rótulo acessível do card. Fim ausente, valor inválido ou fim antes do início aparecem como "—" |
+| aeronave | string | Nome da aeronave fornecido pelo simulador (ex.: "Cessna 172 Skyhawk"). Hoje não é lido do simulador: `collection-service.ts` grava `''` e nenhum código lê a aeronave do SimConnect. Por isso fica fora do card da lista de voos (HITL-1 do loop-005); gravá-la em voos futuros é item novo do backlog |
+| aerodromoOrigem | string \| null | Código ICAO ou nome do aeródromo de saída, se disponível no simulador. Hoje sempre `null` (não lido do simulador; mesmo item do backlog da aeronave) |
+| aerodromoDestino | string \| null | Código ICAO ou nome do aeródromo de chegada, se disponível no simulador. Hoje sempre `null` (idem) |
 | status | enum: ativa \| encerrada | Estado atual da sessão |
 | parametrosNaoAplicaveis | ParametroId[] | Parâmetros que a aeronave da sessão não possui (RN-007), exibidos como "N/A". Decidido uma vez, ao ligar o motor, pelo perfil da aeronave, e válido a sessão toda (ver ADR-008 em [architecture.md](architecture.md)). Persistido na coluna `parametros_nao_aplicaveis` (TEXT com lista JSON, padrão `'[]'`). Sessões criadas antes da migration 002 ficam com `[]`. JSON inválido ou slug desconhecido lido do banco é descartado, com log |
 
@@ -33,7 +33,7 @@ Regra de N/A (loop-003): `mixture_1` é N/A se o motor não é a pistão; `flaps
   - Na abertura do app (sessão restaurada com motor parado ou sem dado do motor em 15 s): a última leitura da sessão (`MAX(timestamp)`); sem leitura, `iniciadaEm` (duração 0).
   - Sessões ativas antigas (v0.1.0 a v0.3.0 e as que ficaram ativas por falha ao gravar o encerramento), encerradas pela rotina de cada abertura: a última leitura; sem leitura, `iniciadaEm` (duração 0).
 - Leituras gravadas durante a espera de 15 s ficam com `timestamp` depois de `encerradaEm`. Elas são mantidas; o debriefing (UC-005) corta a exibição na hora de fim. Uma sessão de falha de gravação encerrada depois pela rotina fica com hora de fim até 15 s depois do início da espera, porque a última leitura inclui a espera.
-- Toda sessão fica gravada, inclusive as muito curtas (RN-005). Ocultar voos curtos, se preciso, é filtro da lista de voos (UC-004).
+- Toda sessão fica gravada, inclusive as muito curtas (RN-005). Ocultar voos curtos, se preciso, é filtro da lista de voos (UC-004). Desde o loop-005, a lista de voos mostra todas as sessões encerradas, inclusive curtas, de duração 0 e antigas, e nunca a ativa (`listarSessoesEncerradas`, `WHERE status = 'encerrada' ORDER BY iniciada_em DESC, rowid DESC`). A sessão de falha de gravação, ainda ativa no banco, só aparece depois que a rotina da abertura a encerra.
 - Há uma diferença de menos de 1 s entre a hora de fim e as leituras, porque motor, solo e parâmetros vêm de pedidos distintos ao SimConnect (débito do loop-004).
 - No banco, a regra de no máximo uma sessão ativa é eventual: uma falha ao gravar o encerramento seguida de religamento deixa duas sessões ativas até a próxima abertura do app, quando a rotina as repara (ver Diretrizes em [architecture.md](architecture.md)).
 
@@ -107,6 +107,8 @@ Tipo interno do main (não vai ao renderer): `PerfilDaAeronave = { motorAPistao,
 Tipos internos do main do loop-004 (não vão ao renderer): `AmostraDoMotor = { combustao, timestamp }` e `AmostraDoSolo = { noSolo, timestamp }` (`simconnect-client.ts`), uma por leitura de 1 s; `EstadoDetector = { motorLigado, noSolo, inicioCondicao }` e `EventoDetector` (`motor`, `solo`, `conexao-perdida`), do detector de encerramento (`detector-de-encerramento.ts`, ADR-009).
 
 No renderer, depois de um `session:end-failed`, a `Sessao` é exibida com `status: 'encerrada'` e `encerradaEm: null`. É estado de exibição: no banco ela continua ativa até a próxima abertura do app.
+
+Desde o loop-005, a `Sessao` aberta na tela do voo (UC-004) também é estado de exibição no renderer: vem da lista (`session:list-ended`) e não é guardada nem enviada de volta ao main. Data e hora de início são exibidas no fuso local da máquina (dd/mm/aaaa e HH:mm, 24 h), a partir do `iniciadaEm` em UTC.
 
 ## Relacionamentos
 

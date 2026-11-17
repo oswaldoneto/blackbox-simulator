@@ -3,7 +3,7 @@
 > Propósito: Como funciona o loop de desenvolvimento: etapas, artefatos e checkpoints humanos (HITL).
 > Atualizar quando: o processo mudar ou uma lição aprendida alterar uma etapa.
 > Relacionados: [backlog.md](backlog.md), [loop_report.md](loop_report.md), [lessons_learned.md](lessons_learned.md), [../product/use_cases.md](../product/use_cases.md)
-> Última atualização: 2026-11-17 · loop-004
+> Última atualização: 2026-11-17 · loop-005
 
 ## Visão geral
 
@@ -117,7 +117,7 @@ Agentes especializados executados em paralelo (swarm). Se qualquer agente aponta
 > - Problemas menores foram registrados como débito ou lição?
 > - O loop pode ser considerado concluído?
 > Se houver bloqueante: retorna ao HITL-2 após correção.
-> Se o humano decidir corrigir itens não bloqueantes, há no máximo uma rodada curta por loop (Implementar e Testar só os ajustes, revisão só pelos revisores envolvidos). O que a rodada curta levantar vai direto para débito técnico, salvo bloqueante.
+> Se o humano decidir corrigir itens não bloqueantes, há no máximo uma rodada curta por loop (Implementar e Testar só os ajustes, revisão só pelos revisores envolvidos). O que a rodada curta levantar vai direto para débito técnico, salvo bloqueante. Defeitos introduzidos pelos próprios ajustes (achados no teste ou na revisão da rodada) não contam como itens novos: são corrigidos dentro da rodada.
 > Só avança para Documentar com aprovação explícita.
 
 ---

@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import {
   SESSION_GET_ACTIVE,
+  SESSION_LIST_ENDED,
   SESSION_STARTED,
   SESSION_ENDED,
   SESSION_END_FAILED,
@@ -14,6 +15,9 @@ import type { EstadoConexao, PacoteDeLeituras, ParametroDeVoo, Sessao } from '..
 contextBridge.exposeInMainWorld('electronApi', {
   getActiveSessao: (): Promise<Sessao | null> =>
     ipcRenderer.invoke(SESSION_GET_ACTIVE),
+
+  listSessoesEncerradas: (): Promise<Sessao[]> =>
+    ipcRenderer.invoke(SESSION_LIST_ENDED),
 
   onSessionStarted: (callback: (sessao: Sessao) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, sessao: Sessao): void => {

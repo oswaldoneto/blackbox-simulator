@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ----- mocks (hoisted so vi.mock factories can reference them) -----
-const { mockIpcMainHandle, mockWebContentsSend, mockBuscarSessaoAtiva } = vi.hoisted(() => ({
-  mockIpcMainHandle: vi.fn(),
-  mockWebContentsSend: vi.fn(),
-  // O handler não pode mais ler o banco (UC-003): o mock existe para provar isso.
-  mockBuscarSessaoAtiva: vi.fn(),
-}))
+const { mockIpcMainHandle, mockWebContentsSend, mockBuscarSessaoAtiva, mockListarSessoesEncerradas } =
+  vi.hoisted(() => ({
+    mockIpcMainHandle: vi.fn(),
+    mockWebContentsSend: vi.fn(),
+    // O handler não pode mais ler o banco (UC-003): o mock existe para provar isso.
+    mockBuscarSessaoAtiva: vi.fn(),
+    mockListarSessoesEncerradas: vi.fn(),
+  }))
 
 vi.mock('electron', () => ({
   ipcMain: { handle: mockIpcMainHandle },
@@ -15,6 +17,7 @@ vi.mock('electron', () => ({
 
 vi.mock('../db/session-repository', () => ({
   buscarSessaoAtiva: mockBuscarSessaoAtiva,
+  listarSessoesEncerradas: mockListarSessoesEncerradas,
 }))
 
 import {
@@ -26,6 +29,7 @@ import {
 import type { Sessao } from '../../shared/types'
 import {
   SESSION_GET_ACTIVE,
+  SESSION_LIST_ENDED,
   SESSION_STARTED,
   SESSION_ENDED,
   SESSION_END_FAILED,
@@ -45,18 +49,28 @@ function makeSessao(overrides: Partial<Sessao> = {}): Sessao {
   }
 }
 
+/** Handler registrado no canal (a ordem de registro não importa). */
+function handlerDoCanal<T>(canal: string): () => T {
+  const chamada = mockIpcMainHandle.mock.calls.find((c) => c[0] === canal)
+  if (chamada === undefined) {
+    throw new Error(`Nenhum handler registrado em ${canal}`)
+  }
+  return chamada[1] as () => T
+}
+
 describe('sessionHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
   describe('registerSessionHandlers', () => {
-    it('deve registrar handler no canal session:get-active', () => {
+    it('deve registrar handlers nos canais session:get-active e session:list-ended', () => {
       registerSessionHandlers(() => null)
 
-      expect(mockIpcMainHandle).toHaveBeenCalledOnce()
-      const channel = mockIpcMainHandle.mock.calls[0][0] as string
-      expect(channel).toBe(SESSION_GET_ACTIVE)
+      expect(mockIpcMainHandle).toHaveBeenCalledTimes(2)
+      const canais = mockIpcMainHandle.mock.calls.map((c) => c[0] as string)
+      expect(canais).toEqual(expect.arrayContaining([SESSION_GET_ACTIVE, SESSION_LIST_ENDED]))
+      expect(SESSION_LIST_ENDED).toBe('session:list-ended')
     })
 
     it('deve retornar a sessão ativa da memória do main via canal session:get-active', () => {
@@ -65,7 +79,7 @@ describe('sessionHandler', () => {
 
       registerSessionHandlers(getSessaoAtual)
 
-      const handler = mockIpcMainHandle.mock.calls[0][1] as () => Sessao | null
+      const handler = handlerDoCanal<Sessao | null>(SESSION_GET_ACTIVE)
       const resultado = handler()
 
       expect(resultado).toEqual(sessao)
@@ -76,7 +90,7 @@ describe('sessionHandler', () => {
     it('deve retornar null quando não há sessão ativa na memória', () => {
       registerSessionHandlers(() => null)
 
-      const handler = mockIpcMainHandle.mock.calls[0][1] as () => Sessao | null
+      const handler = handlerDoCanal<Sessao | null>(SESSION_GET_ACTIVE)
       const resultado = handler()
 
       expect(resultado).toBeNull()
@@ -88,7 +102,7 @@ describe('sessionHandler', () => {
 
       registerSessionHandlers(() => null)
 
-      const handler = mockIpcMainHandle.mock.calls[0][1] as () => Sessao | null
+      const handler = handlerDoCanal<Sessao | null>(SESSION_GET_ACTIVE)
       expect(handler()).toBeNull()
       expect(mockBuscarSessaoAtiva).not.toHaveBeenCalled()
     })
@@ -96,11 +110,65 @@ describe('sessionHandler', () => {
     it('deve consultar a memória a cada chamada, sem guardar a resposta', () => {
       let atual: Sessao | null = null
       registerSessionHandlers(() => atual)
-      const handler = mockIpcMainHandle.mock.calls[0][1] as () => Sessao | null
+      const handler = handlerDoCanal<Sessao | null>(SESSION_GET_ACTIVE)
 
       expect(handler()).toBeNull()
       atual = makeSessao({ id: 'confirmada' })
       expect(handler()!.id).toBe('confirmada')
+    })
+
+    it('não deve ler as sessões encerradas ao responder session:get-active', () => {
+      registerSessionHandlers(() => null)
+      handlerDoCanal<Sessao | null>(SESSION_GET_ACTIVE)()
+      expect(mockListarSessoesEncerradas).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('session:list-ended', () => {
+    it('deve responder com a lista de sessões encerradas do repositório', () => {
+      const lista = [
+        makeSessao({ id: 'b', status: 'encerrada', encerradaEm: '2024-01-02T01:00:00.000Z' }),
+        makeSessao({ id: 'a', status: 'encerrada', encerradaEm: '2024-01-01T01:00:00.000Z' }),
+      ]
+      mockListarSessoesEncerradas.mockReturnValue(lista)
+      registerSessionHandlers(() => null)
+
+      const resultado = handlerDoCanal<Sessao[]>(SESSION_LIST_ENDED)()
+
+      expect(resultado).toEqual(lista)
+      expect(mockListarSessoesEncerradas).toHaveBeenCalledOnce()
+    })
+
+    it('deve responder com lista vazia quando não há sessões encerradas', () => {
+      mockListarSessoesEncerradas.mockReturnValue([])
+      registerSessionHandlers(() => null)
+
+      expect(handlerDoCanal<Sessao[]>(SESSION_LIST_ENDED)()).toEqual([])
+    })
+
+    it('deve logar e relançar o erro quando a leitura do banco falha', () => {
+      const falha = new Error('database is locked')
+      mockListarSessoesEncerradas.mockImplementation(() => {
+        throw falha
+      })
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+      registerSessionHandlers(() => null)
+
+      expect(() => handlerDoCanal<Sessao[]>(SESSION_LIST_ENDED)()).toThrow(falha)
+      expect(consoleError).toHaveBeenCalledWith(
+        '[SessionHandler] Falha ao listar as sessões encerradas:',
+        falha
+      )
+      consoleError.mockRestore()
+    })
+
+    it('deve ler o banco a cada chamada, sem guardar a resposta', () => {
+      registerSessionHandlers(() => null)
+      const handler = handlerDoCanal<Sessao[]>(SESSION_LIST_ENDED)
+      mockListarSessoesEncerradas.mockReturnValueOnce([])
+      expect(handler()).toEqual([])
+      mockListarSessoesEncerradas.mockReturnValueOnce([makeSessao({ id: 'nova', status: 'encerrada' })])
+      expect(handler().map((x) => x.id)).toEqual(['nova'])
     })
   })
 

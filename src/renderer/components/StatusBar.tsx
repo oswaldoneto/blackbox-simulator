@@ -1,10 +1,21 @@
 import React from 'react'
 import type { EstadoConexao, Sessao } from '../../shared/types'
+import './status-bar.css'
+
+/** Seção destacada na navegação da barra superior (a tela do voo pertence a "Voos"). */
+export type SecaoNavegacao = 'painel' | 'voos'
 
 interface StatusBarProps {
   sessaoAtiva: Sessao | null
   conexao: EstadoConexao
+  secaoAtual: SecaoNavegacao
+  onNavegar: (secao: SecaoNavegacao) => void
 }
+
+const SECOES: ReadonlyArray<{ secao: SecaoNavegacao; rotulo: string }> = [
+  { secao: 'painel', rotulo: 'Painel' },
+  { secao: 'voos', rotulo: 'Voos' },
+]
 
 type SessionIndicator = {
   color: string
@@ -43,6 +54,20 @@ const barStyle: React.CSSProperties = {
   zIndex: 100,
 }
 
+const leftGroupStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '24px',
+  height: '100%',
+}
+
+const navStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '16px',
+  height: '100%',
+}
+
 const appNameStyle: React.CSSProperties = {
   fontFamily: "'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif",
   fontSize: '16px',
@@ -63,7 +88,12 @@ const labelStyle: React.CSSProperties = {
   color: 'var(--color-text-secondary)',
 }
 
-export function StatusBar({ sessaoAtiva, conexao }: StatusBarProps): React.ReactElement {
+export function StatusBar({
+  sessaoAtiva,
+  conexao,
+  secaoAtual,
+  onNavegar,
+}: StatusBarProps): React.ReactElement {
   const { color, label } = getSessionIndicator(sessaoAtiva, conexao)
 
   const dotStyle: React.CSSProperties = {
@@ -76,7 +106,24 @@ export function StatusBar({ sessaoAtiva, conexao }: StatusBarProps): React.React
 
   return (
     <header style={barStyle}>
-      <span style={appNameStyle}>Blackbox Simulator</span>
+      <div style={leftGroupStyle}>
+        <span style={appNameStyle}>Blackbox Simulator</span>
+        <nav style={navStyle} aria-label="Navegação principal">
+          {SECOES.map(({ secao, rotulo }) => (
+            <button
+              key={secao}
+              type="button"
+              className="status-bar__nav-button"
+              aria-current={secao === secaoAtual ? 'page' : undefined}
+              onClick={() => {
+                onNavegar(secao)
+              }}
+            >
+              {rotulo}
+            </button>
+          ))}
+        </nav>
+      </div>
       <div style={indicatorWrapStyle} aria-label={label}>
         <span style={dotStyle} aria-hidden="true" />
         <span style={labelStyle}>{label}</span>

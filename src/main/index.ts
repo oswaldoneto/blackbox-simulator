@@ -18,6 +18,9 @@ function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
+    // Abaixo de 640 px a barra superior cortaria o indicador de estado.
+    minWidth: 640,
+    minHeight: 480,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

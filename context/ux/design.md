@@ -3,7 +3,7 @@
 > Propósito: Diretrizes de design da interface gráfica.
 > Atualizar quando: mudar um padrão visual ou entrar um componente novo.
 > Relacionados: [usability.md](usability.md)
-> Última atualização: 2026-11-17 · loop-004
+> Última atualização: 2026-11-17 · loop-005
 
 ## Princípios visuais
 
@@ -88,9 +88,23 @@ Regra: estado de sessão ativa usa `color-success` + rótulo "Sessão ativa". Es
 
 ### Card de sessão
 - Usado em: lista de voos (UC-004).
-- Exibe: data e hora de início, duração, indicador de estado (ativa ou encerrada).
-- Estados: **normal**, **selecionado** (borda `color-accent`, fundo `color-surface`).
-- Interação: clique único seleciona e abre o debriefing.
+- Elemento: botão (`<button>`) da largura da lista, fundo `color-surface`, borda 1px `color-border`, raio 4px, padding 16px, texto alinhado à esquerda, 4px entre as linhas.
+- Exibe, em duas linhas:
+  - data · hora de início ("dd/mm/aaaa · HH:mm") em Valor secundário (IBM Plex Mono 14px, `color-text-primary`, `tabular-nums`);
+  - rótulo "Duração" (Rótulo, `color-text-secondary`) seguido do valor h:mm:ss em Valor secundário.
+- Não exibe indicador de estado (a lista só tem sessões encerradas) nem aeronave (o campo não é gravado hoje; decisão do HITL-1 do loop-005). Valor inválido ou ausente aparece como "—".
+- Estados: **normal**; **hover** (borda `color-accent`); **foco** (contorno `color-accent` de 2px, afastado 2px). Não há estado "selecionado": o clique abre o voo direto.
+- Interação: clique ou Enter abre a tela do voo (provisória até o UC-005). Formatos e rótulo acessível em [usability.md](usability.md).
+- Implementado em: UC-004 (`flight-card.tsx`, `flight-card.css`).
+
+### Navegação da barra superior
+- Usada em: barra superior, em todas as telas (UC-004).
+- Botões "Painel" e "Voos" dentro de `<nav aria-label="Navegação principal">`, logo à direita do nome do app (24px do nome, 16px entre os botões), sempre visíveis, inclusive durante uma sessão ativa.
+- Estilo: tipografia Corpo com peso 500 (IBM Plex Sans 14px/500), `color-text-secondary`, sem fundo nem borda, altura da barra (48px).
+- Estados: **normal**; **hover** (`color-text-primary`); **atual** (`color-accent` + sublinhado de 2px `color-accent` + `aria-current="page"`); **foco** (contorno `color-accent` de 2px por dentro do botão).
+- A tela do voo pertence à seção "Voos": com ela aberta, "Voos" fica marcado como atual.
+- Clicar no botão da seção atual não muda nada na tela (ver "Em aberto e débitos de UX").
+- Implementado em: UC-004 (`StatusBar.tsx`, `status-bar.css`).
 
 ### Gráfico de linha temporal
 - Usado em: debriefing (UC-005).
@@ -125,8 +139,13 @@ Regra: estado de sessão ativa usa `color-success` + rótulo "Sessão ativa". Es
 ## Layout
 
 ### Estrutura geral
-- Barra superior fixa: nome da aplicação à esquerda, indicador de estado da sessão à direita.
-- Área de conteúdo abaixo da barra, sem menu lateral fixo.
+- Barra superior fixa (48px): nome da aplicação à esquerda, logo à direita dele a navegação "Painel"/"Voos", e o indicador de estado da sessão à direita (loop-005).
+- A barra superior, o indicador de estado e a notificação de sistema ficam visíveis em todas as telas (painel, lista de voos e tela do voo).
+- Área de conteúdo abaixo da barra, sem menu lateral fixo. A tela mostrada na área de conteúdo é uma de três: painel de tempo real, lista de voos ou tela do voo.
+- O app abre no painel.
+- Volta automática ao painel: quando uma sessão começa (motor ligado) com a lista ou a tela do voo aberta, o painel aparece sozinho, com a notificação "Coleta iniciada" (UC-002 inalterado). O encerramento de uma sessão não troca de tela.
+- A coleta continua normalmente em qualquer tela; ao voltar ao painel, os valores ao vivo estão lá.
+- O painel tem um título "Painel de tempo real" visualmente oculto (h1 só para leitor de tela), que recebe o foco nas trocas de tela; ver [usability.md](usability.md).
 
 ### Tela: painel de tempo real (UC-002)
 - Ocupa a área principal da janela do app.
@@ -139,8 +158,25 @@ Regra: estado de sessão ativa usa `color-success` + rótulo "Sessão ativa". Es
 - Maximização de card (card ocupando a área de conteúdo, com botão "Reduzir" para voltar à grade): fora do escopo do loop-002; item do backlog.
 
 ### Tela: lista de voos (UC-004)
-- Lista vertical de cards de sessão em ordem cronológica inversa.
-- Estado vazio: mensagem centralizada com orientação de próximo passo.
+- Acesso: botão "Voos" da barra superior.
+- Título de tela "Voos" (h1, Título de tela, 16px abaixo).
+- Coluna única de cards de sessão, com 8px entre eles e rolagem vertical simples (sem paginação; filtro e busca fora do loop-005).
+- Mostra só as sessões encerradas, inclusive curtas, de duração 0 e antigas, ordenadas pela hora de início, da mais recente para a mais antiga (desempate pela ordem de gravação). A sessão ativa não aparece.
+- A lista é buscada a cada abertura da tela e de novo quando uma sessão encerra com ela aberta.
+- Estados (textos em [usability.md](usability.md)):
+  - **Carregando:** mensagem em Corpo, `color-text-secondary`, alinhada à esquerda, só se a busca passar de 500 ms.
+  - **Vazio:** mensagem em Corpo, `color-text-secondary`, centralizada, com 48px de espaço vertical. Vale também quando só existe a sessão ativa.
+  - **Erro:** mensagem em Corpo, `color-text-secondary`, alinhada à esquerda, só se a primeira carga falhar; sem nova tentativa automática. Uma falha numa nova busca mantém a lista anterior.
+  - **Lista:** os cards.
+- Implementado em: UC-004 (`pages/flight-list/flight-list-page.tsx`).
+
+### Tela provisória do voo (UC-004)
+- Aberta pelo clique (ou Enter) num card da lista. Ocupa o lugar da tela de debriefing até o UC-005, que depois a preenche com as leituras.
+- Título de tela "Voo de dd/mm/aaaa" (h1).
+- Bloco de dados no estilo de card (fundo `color-surface`, borda `color-border`, raio 4px, padding 16px), em duas colunas: rótulos "Data", "Hora de início" e "Duração" (Rótulo, `color-text-secondary`) e valores em Valor secundário (`color-text-primary`).
+- Aviso "Debriefing disponível em breve" no estilo do aviso do painel (Corpo, `color-text-secondary`, sem fundo nem ícone).
+- Botão "Voltar à lista": contorno de 1px e texto em `color-accent` (IBM Plex Sans 14px/500), fundo `color-surface`, raio 4px, padding 8px 16px; hover com fundo `color-bg`; foco com contorno `color-accent` de 2px. Esc também volta à lista.
+- Implementado em: UC-004 (`pages/flight-detail/flight-detail-page.tsx`, `flight-detail-page.css`).
 
 ### Tela: debriefing (UC-005)
 - Área principal: gráfico de linha temporal do parâmetro selecionado.
@@ -148,6 +184,7 @@ Regra: estado de sessão ativa usa `color-success` + rótulo "Sessão ativa". Es
 - Qualquer gráfico pode ser maximizado para ocupar toda a área de conteúdo.
 
 ### Comportamento em janelas menores
+- A janela tem tamanho mínimo de 640 x 480 px (loop-005), para a barra superior com a navegação não cortar o indicador de estado (antes, abaixo de cerca de 430 px, ele ficava cortado). A conferência no Windows faz parte do roteiro manual do loop-005.
 - A grade do painel de tempo real tem 4 colunas acima de 900px, 2 colunas entre 600px e 900px e 1 coluna abaixo de 600px, sempre na ordem dos grupos (decisão do HITL-1 do loop-003).
 - Com 12 cards, larguras de 900px ou menos podem exigir rolagem vertical para ver todos os parâmetros (consequência aceita da grade 4/2/1; ver "Em aberto e débitos de UX").
 - A 2 colunas, cada grupo ocupa duas linhas da grade e a divisão entre grupos deixa de ser visível.
@@ -174,3 +211,11 @@ Pontos da revisão de usabilidade do loop-004 (UC-003). Decisão do HITL-3: déb
 - **Notificação mais alta sobre o card:** com 3 a 4 linhas, a notificação de erro cobre mais o card do canto superior direito por 4 s (agrava "Notificação sobre o card").
 - **Falha só visível na notificação:** na falha ao gravar o encerramento, painel e barra mostram "Encerrada" como no sucesso; a falha só aparece na notificação de 4 s.
 - **Orientação durante a verificação na abertura:** por até 15 s após abrir o app, com o motor já ligado, a tela mostra "Aguardando motor" e a orientação para ligar o motor.
+
+Pontos da revisão de usabilidade do loop-005 (UC-004). Decisão do HITL-3: débito de UX (os itens da rodada curta foram direto para débito, pela regra da rodada curta única). Os débitos de acessibilidade do loop estão em [usability.md](usability.md):
+
+- **Borda do card de sessão:** o card é um botão, mas a borda `color-border` sobre `color-bg` tem contraste de cerca de 1,2:1, abaixo dos 3:1 usuais para contorno de componente.
+- **"—" em cor primária:** no card de sessão e na tela do voo, o "—" de valor inválido usa `color-text-primary`; no painel ele usa `color-text-secondary`.
+- **Clique na seção atual:** clicar em "Painel" ou "Voos" estando na própria seção não dá retorno visual.
+- **Alinhamento dos estados da lista:** o estado vazio é centralizado, enquanto carregando e erro ficam alinhados à esquerda.
+- **Duração da tela do voo:** aparece só em h:mm:ss (tratar no UC-005, junto com a versão por extenso para leitor de tela).

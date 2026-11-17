@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // --- mock better-sqlite3 before importing the module under test ---
 const mockRun = vi.fn()
 const mockGet = vi.fn()
+const mockAll = vi.fn()
 const mockPrepare = vi.fn()
 
 const mockTransaction = vi.fn((fn: () => unknown) => () => fn())
@@ -31,7 +32,7 @@ vi.mock('fs', async (importOriginal) => {
 // --- helpers ---
 
 function makeMockDb() {
-  mockPrepare.mockReturnValue({ run: mockRun, get: mockGet })
+  mockPrepare.mockReturnValue({ run: mockRun, get: mockGet, all: mockAll })
 }
 
 // import under test AFTER mocks are set up
@@ -40,6 +41,7 @@ import {
   buscarSessaoAtiva,
   encerrarSessao,
   encerrarSessoesAtivasAnteriores,
+  listarSessoesEncerradas,
 } from './session-repository'
 
 describe('sessionRepository', () => {
@@ -249,6 +251,54 @@ describe('sessionRepository', () => {
 
       expect(encerrarSessoesAtivasAnteriores()).toBe(3)
       expect(mockTransaction).toHaveBeenCalledOnce()
+    })
+  })
+
+  // --- UC-004: lista de voos (SQL real em session-repository-sqlite.test.ts) ---
+
+  describe('listarSessoesEncerradas', () => {
+    const ROW = {
+      id: 'v1',
+      iniciada_em: '2024-01-02T10:00:00.000Z',
+      encerrada_em: '2024-01-02T11:00:00.000Z',
+      aeronave: '',
+      aerodromo_origem: null,
+      aerodromo_destino: null,
+      status: 'encerrada',
+      parametros_nao_aplicaveis: '["flaps"]',
+    }
+
+    it('deve filtrar por status encerrada e ordenar por iniciada_em DESC com desempate por rowid DESC', () => {
+      mockAll.mockReturnValueOnce([])
+
+      listarSessoesEncerradas()
+
+      const sql = mockPrepare.mock.calls[0][0] as string
+      expect(sql).toContain("status = 'encerrada'")
+      expect(sql.replace(/\s+/g, ' ')).toContain('ORDER BY iniciada_em DESC, rowid DESC')
+    })
+
+    it('deve devolver lista vazia quando não há sessões encerradas', () => {
+      mockAll.mockReturnValueOnce([])
+      expect(listarSessoesEncerradas()).toEqual([])
+    })
+
+    it('deve mapear as linhas para Sessao na ordem devolvida pelo banco', () => {
+      mockAll.mockReturnValueOnce([ROW, { ...ROW, id: 'v0', iniciada_em: '2024-01-01T10:00:00.000Z' }])
+
+      const lista = listarSessoesEncerradas()
+
+      expect(lista.map((s) => s.id)).toEqual(['v1', 'v0'])
+      expect(lista[0]).toEqual({
+        id: 'v1',
+        iniciadaEm: '2024-01-02T10:00:00.000Z',
+        encerradaEm: '2024-01-02T11:00:00.000Z',
+        aeronave: '',
+        aerodromoOrigem: null,
+        aerodromoDestino: null,
+        status: 'encerrada',
+        parametrosNaoAplicaveis: ['flaps'],
+      })
     })
   })
 })

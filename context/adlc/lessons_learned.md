@@ -3,7 +3,7 @@
 > Propósito: O que cada loop ensinou, e onde a lição foi aplicada no contexto.
 > Atualizar quando: no final de cada loop.
 > Relacionados: [loop_report.md](loop_report.md)
-> Última atualização: 2026-11-17 · loop-004
+> Última atualização: 2026-11-17 · loop-005
 
 ## Lições
 
@@ -139,6 +139,34 @@ Loop: loop-004
 O que aconteceu: Durante uma pergunta com várias decisões, o humano respondeu parte delas por mensagem livre. Só as decisões respondidas foram registradas; as demais foram perguntadas de novo.
 Lição: Quando a resposta a uma pergunta múltipla chega parcial ou em texto livre, registrar só o que foi decidido de forma explícita e perguntar de novo o restante, em vez de inferir a escolha pelo padrão proposto.
 Onde foi aplicada: loop-004, registro das decisões dos HITL em loop_reports/loop-004.md.
+
+LL-020
+Data: 2026-11-17
+Loop: loop-005
+O que aconteceu: A regra de no máximo uma rodada curta por loop, criada no HITL-4 do loop-004 (LL-016), foi aplicada pela primeira vez. O HITL-3 escolheu 5 ajustes; a revisão curta, só de usabilidade, aprovou os ajustes e levantou 2 itens novos menores (foco no `body` durante a recarga da lista e duração da tela do voo sem versão por extenso), que foram direto para débito, sem uma 2ª rodada.
+Lição: A regra funcionou como critério de parada: o humano escolheu de uma vez o pacote de ajustes que valia corrigir, e os achados da rodada curta não abriram outra rodada. Vale manter a regra e, ao escolher os ajustes no HITL-3, agrupar num só pacote tudo o que se quer corrigir no loop.
+Onde foi aplicada: loop-005, decisões do HITL-3 (1ª rodada e rodada curta) em loop_reports/loop-005.md; regra em agent_development_lifecycle.md (HITL-3).
+
+LL-021
+Data: 2026-11-17
+Loop: loop-005
+O que aconteceu: Na 2.2 da rodada curta, o tester encontrou um defeito causado pelo próprio ajuste 3: com hora de fim nula, o rótulo do card saía "duração duração indisponível". O developer corrigiu dentro da rodada (constante `DURACAO_INDISPONIVEL`), antes da revisão curta.
+Lição: Um defeito introduzido pelos ajustes da rodada curta não é "item novo" levantado por ela: é parte do ajuste não terminado e deve ser corrigido dentro da própria rodada, não mandado para débito. A regra da rodada curta única fala só do que a revisão levanta; deixar explícita essa distinção é decisão do humano.
+Onde foi aplicada: loop-005, etapa 2.2 da rodada curta; regra registrada no HITL-4 em agent_development_lifecycle.md (HITL-3) e nas skills loop-review (.bob e .claude).
+
+LL-022
+Data: 2026-11-17
+Loop: loop-005
+O que aconteceu: Sem o simulador e sem o Windows, o app foi aberto no macOS e conferido pelo protocolo de depuração do Chromium (CDP): navegação para "Voos", leitura do título, do estado vazio oficial e do `aria-current`, e console sem erros. Isso complementou os testes automatizados, que rodam em jsdom.
+Lição: Conferir o app real pelo CDP (navegar, clicar e ler a tela e os atributos de acessibilidade) é um passo barato entre os testes automatizados e o roteiro manual no Windows. Ele confirma a ligação real entre main, preload e renderer e deixa para o Windows só o que depende do simulador ou do sistema (fuso, largura da janela, leitor de tela).
+Onde foi aplicada: loop-005, conferência no app da etapa 2.2.
+
+LL-023
+Data: 2026-11-17
+Loop: loop-005
+O que aconteceu: A 1.1 propôs mostrar a aeronave no card do voo porque o campo existe na Sessão. O refinamento técnico (1.2) descobriu que `aeronave` nunca foi gravado (criado com `''`, sem leitura do SimConnect) e que os aeródromos ficam sempre `null`. No HITL-1, a aeronave saiu do card e virou item novo do backlog.
+Lição: Antes de especificar que o produto exibe um dado, confirmar no código que ele é de fato gravado. Um campo no modelo de domínio não garante que tenha valor. Na 1.1, dados a exibir vindos do banco devem entrar como "a confirmar no refinamento técnico", e o domain_model.md deve indicar campos ainda não preenchidos.
+Onde foi aplicada: loop-005, 1.2 e decisão 1 do HITL-1; domain_model.md (4.2) com os campos gravados vazios; backlog item 9.
 
 ## Modelo de lição
 

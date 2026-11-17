@@ -13,6 +13,12 @@ export const SESSION_END_FAILED = 'session:end-failed' as const
 /** Invocado pelo renderer para buscar a sessão ativa na memória do main. */
 export const SESSION_GET_ACTIVE = 'session:get-active' as const
 
+/**
+ * Invocado pelo renderer para listar as sessões encerradas gravadas no banco (UC-004),
+ * da mais recente para a mais antiga.
+ */
+export const SESSION_LIST_ENDED = 'session:list-ended' as const
+
 /** Invocado pelo renderer para buscar os parâmetros de voo ativos (RN-002). */
 export const PARAMETER_LIST_ACTIVE = 'parameter:list-active' as const
 

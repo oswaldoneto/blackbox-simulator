@@ -30,7 +30,7 @@ Depois, faça estas perguntas e espere a minha resposta:
 
 Se houver bloqueante: retorna ao HITL-2 após correção. Registre o motivo no loop-NNN.md e atualize "Fase atual: Implementar".
 
-Se eu decidir corrigir itens não bloqueantes: no máximo uma rodada curta por loop (Implementar e Testar só os ajustes, revisão só pelos revisores envolvidos). O que a rodada curta levantar vai direto para débito técnico, salvo bloqueante.
+Se eu decidir corrigir itens não bloqueantes: no máximo uma rodada curta por loop (Implementar e Testar só os ajustes, revisão só pelos revisores envolvidos). O que a rodada curta levantar vai direto para débito técnico, salvo bloqueante. Defeitos introduzidos pelos próprios ajustes (achados no teste ou na revisão da rodada) não contam como itens novos: são corrigidos dentro da rodada.
 
 Se eu aprovar: registre no loop-NNN.md "HITL-3 aprovado em <data>" e "Fase atual: Documentar".
 

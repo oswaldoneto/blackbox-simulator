@@ -3,7 +3,7 @@
 > Propósito: Regras de negócio reutilizáveis entre casos de uso, cada uma com um identificador RN-NNN.
 > Atualizar quando: uma regra for criada, alterada ou deixar de valer.
 > Relacionados: [glossary.md](glossary.md)
-> Última atualização: 2026-11-17 · loop-004
+> Última atualização: 2026-11-17 · loop-005
 
 ## Regras
 
@@ -26,7 +26,7 @@ Aplica-se a: UC-001, UC-002, UC-005, UC-006
 RN-003
 Nome: Início automático da sessão
 Descrição: A sessão inicia automaticamente quando o motor da aeronave é ligado no simulador. Se o Blackbox Simulator for iniciado com o motor já em funcionamento, a sessão começa a partir daquele momento.
-Aplica-se a: UC-001, UC-002, UC-003
+Aplica-se a: UC-001, UC-002, UC-003, UC-004
 
 ---
 
@@ -40,7 +40,7 @@ Descrição: A sessão encerra automaticamente quando a aeronave está no solo e
 - Sessões antigas: a cada abertura do app, toda sessão ativa exceto a mais recente é encerrada com a hora da última leitura (sem leitura, a hora de início).
 - Gravação: a notificação de sucesso só aparece depois de gravado o encerramento. Se a gravação falha, as leituras são mantidas e a próxima abertura do app conclui o encerramento.
 (Alterada em 2026-11-17, loop-004: antes "quando o motor da aeronave é desligado"; critério, hora de fim, queda de conexão, abertura do app e sessões antigas explicitados.)
-Aplica-se a: UC-002, UC-003
+Aplica-se a: UC-002, UC-003, UC-004
 
 ---
 
@@ -54,7 +54,7 @@ Aplica-se a: UC-003, UC-004, UC-005, UC-006
 RN-006
 Nome: Não interferência no simulador
 Descrição: O Blackbox Simulator opera em modo passivo: coleta e exibe dados, mas não envia comandos nem altera o estado do simulador.
-Aplica-se a: UC-002, UC-003, UC-006
+Aplica-se a: UC-002, UC-003, UC-004, UC-006
 
 ---
 

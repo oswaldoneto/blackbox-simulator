@@ -36,6 +36,7 @@ import {
   buscarSessaoAtiva,
   encerrarSessao,
   encerrarSessoesAtivasAnteriores,
+  listarSessoesEncerradas,
 } from './session-repository'
 import { inserirLeitura, buscarUltimaLeituraEm } from './reading-repository'
 import type { Sessao } from '../../shared/types'
@@ -390,6 +391,96 @@ describe.skipIf(nodeSqlite === null)('sessionRepository com SQLite real (node:sq
       expect(linha('antiga-com-leituras').encerrada_em).toBe('2026-11-01T10:42:17.000Z')
       expect(linha('antiga-sem-leituras').encerrada_em).toBe('2026-11-05T10:00:00.000Z')
       expect(buscarSessaoAtiva()!.id).toBe('recente')
+    })
+  })
+
+  describe('listarSessoesEncerradas', () => {
+    function encerrarBruta(id: string, encerradaEm: string): void {
+      db.prepare(`UPDATE sessoes SET status = 'encerrada', encerrada_em = ? WHERE id = ?`).run(
+        encerradaEm,
+        id
+      )
+    }
+
+    it('deve devolver lista vazia num banco sem sessões', () => {
+      expect(listarSessoesEncerradas()).toEqual([])
+    })
+
+    it('deve devolver lista vazia quando só existe a sessão ativa', () => {
+      criarSessao(dadosDeSessao())
+      expect(listarSessoesEncerradas()).toEqual([])
+    })
+
+    it('deve trazer só as encerradas, nunca a ativa (nem a de falha de gravação ainda ativa)', () => {
+      const enc = criarSessao(dadosDeSessao({ iniciadaEm: '2026-11-16T10:00:00.000Z' }))
+      encerrarSessao(enc.id, '2026-11-16T11:00:00.000Z')
+      // Falha ao gravar o encerramento: a sessão continua ativa no banco.
+      inserirSessaoBruta('falha-gravacao', '2026-11-17T08:00:00.000Z', 'ativa')
+      criarSessao(dadosDeSessao({ iniciadaEm: '2026-11-17T10:00:00.000Z' }))
+
+      const lista = listarSessoesEncerradas()
+
+      expect(lista.map((s) => s.id)).toEqual([enc.id])
+      expect(lista[0]).toEqual({
+        ...enc,
+        status: 'encerrada',
+        encerradaEm: '2026-11-16T11:00:00.000Z',
+      })
+    })
+
+    it('deve ordenar por hora de início, da mais recente para a mais antiga, independente da inserção e do fim', () => {
+      inserirSessaoBruta('meio', '2026-11-12T10:00:00.000Z', 'ativa')
+      inserirSessaoBruta('recente', '2026-11-15T10:00:00.000Z', 'ativa')
+      inserirSessaoBruta('antiga', '2026-11-01T10:00:00.000Z', 'ativa')
+      encerrarBruta('meio', '2026-11-20T10:00:00.000Z') // fim mais tarde não muda a ordem
+      encerrarBruta('recente', '2026-11-15T10:30:00.000Z')
+      encerrarBruta('antiga', '2026-11-01T11:00:00.000Z')
+
+      expect(listarSessoesEncerradas().map((s) => s.id)).toEqual(['recente', 'meio', 'antiga'])
+    })
+
+    it('deve desempatar pela ordem de gravação (a gravada por último antes) quando o início é igual', () => {
+      inserirSessaoBruta('primeira', '2026-11-15T10:00:00.000Z', 'ativa')
+      inserirSessaoBruta('segunda', '2026-11-15T10:00:00.000Z', 'ativa')
+      inserirSessaoBruta('terceira', '2026-11-15T10:00:00.000Z', 'ativa')
+      encerrarBruta('terceira', '2026-11-15T10:10:00.000Z')
+      encerrarBruta('primeira', '2026-11-15T10:20:00.000Z')
+      encerrarBruta('segunda', '2026-11-15T10:30:00.000Z')
+
+      expect(listarSessoesEncerradas().map((s) => s.id)).toEqual(['terceira', 'segunda', 'primeira'])
+    })
+
+    it('deve incluir sessão curta e de duração 0', () => {
+      const curta = criarSessao(dadosDeSessao({ iniciadaEm: '2026-11-17T10:00:00.000Z' }))
+      encerrarSessao(curta.id, '2026-11-17T10:00:03.000Z')
+      const zero = criarSessao(dadosDeSessao({ iniciadaEm: '2026-11-17T09:00:00.000Z' }))
+      encerrarSessao(zero.id, '2026-11-17T09:00:00.000Z')
+
+      const lista = listarSessoesEncerradas()
+
+      expect(lista.map((s) => s.id)).toEqual([curta.id, zero.id])
+      expect(lista[1].encerradaEm).toBe(lista[1].iniciadaEm)
+    })
+
+    it('deve incluir as sessões antigas encerradas na abertura (com e sem leituras)', () => {
+      inserirSessaoBruta('antiga-com-leituras', '2026-11-01T10:00:00.000Z', 'ativa')
+      inserirSessaoBruta('antiga-sem-leituras', '2026-11-05T10:00:00.000Z', 'ativa')
+      inserirSessaoBruta('recente', '2026-11-10T10:00:00.000Z', 'ativa')
+      gravarLeituras('antiga-com-leituras', ['2026-11-01T10:42:17.000Z'])
+
+      encerrarSessoesAtivasAnteriores()
+      const lista = listarSessoesEncerradas()
+
+      expect(lista.map((s) => s.id)).toEqual(['antiga-sem-leituras', 'antiga-com-leituras'])
+      expect(lista[0].encerradaEm).toBe('2026-11-05T10:00:00.000Z')
+      expect(lista[1].encerradaEm).toBe('2026-11-01T10:42:17.000Z')
+    })
+
+    it('deve trazer sessões antigas gravadas antes da coluna de parâmetros N/A com lista vazia', () => {
+      inserirSessaoBruta('v010', '2026-11-01T10:00:00.000Z', 'ativa')
+      encerrarBruta('v010', '2026-11-01T10:30:00.000Z')
+
+      expect(listarSessoesEncerradas()[0].parametrosNaoAplicaveis).toEqual([])
     })
   })
 })
