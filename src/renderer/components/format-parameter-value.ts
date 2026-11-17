@@ -9,7 +9,7 @@ const SINAL_MENOS = '−'
  * Assumida como positiva com o nariz para BAIXO; por isso o valor é invertido na
  * exibição, para mostrar "+" com o nariz para cima. A correção é só de exibição:
  * a coleta e o banco guardam o valor bruto.
- * A confirmar no teste manual no Windows com o MSFS 2024 (loop-002, HITL-1).
+ * Confirmado no teste manual no Windows com o MSFS 2024 (loop-002).
  */
 export const PITCH_POSITIVO_NARIZ_PARA_BAIXO = true
 
@@ -18,7 +18,7 @@ export const PITCH_POSITIVO_NARIZ_PARA_BAIXO = true
  * Assumida como positiva para a ESQUERDA; a exibição mostra o valor absoluto
  * com "E" (esquerda) para positivo e "D" (direita) para negativo. A correção é
  * só de exibição: a coleta e o banco guardam o valor bruto.
- * A confirmar no teste manual no Windows com o MSFS 2024 (loop-002, HITL-1).
+ * Confirmado no teste manual no Windows com o MSFS 2024 (loop-002).
  */
 export const BANK_POSITIVO_PARA_ESQUERDA = true
 

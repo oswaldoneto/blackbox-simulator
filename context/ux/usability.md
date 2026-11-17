@@ -90,5 +90,5 @@ Regras gerais:
 - Negativos usam o sinal de menos tipográfico (U+2212, "−"), não o hífen.
 - "−0" é exibido como "0".
 - Valor ausente ou inválido (`null`, `NaN`, `Infinity`) é exibido como "—".
-- Os sinais de arfagem e rolagem são corrigidos só na exibição; o sentido real será confirmado no roteiro manual no Windows com o MSFS.
+- Os sinais de arfagem e rolagem são corrigidos só na exibição; o sentido foi confirmado no teste manual no Windows com o MSFS 2024 (loop-002).
 - Débito: o arredondamento da velocidade vertical é assimétrico perto de zero (+5 fpm vira "+10", −5 fpm vira "0").

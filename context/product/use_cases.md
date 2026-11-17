@@ -10,7 +10,7 @@
 | ID | Nome | Status |
 |----|------|--------|
 | UC-001 | Iniciar sessão de coleta | Concluído |
-| UC-002 | Visualizar parâmetros em tempo real | Em andamento |
+| UC-002 | Visualizar parâmetros em tempo real | Concluído |
 | UC-003 | Encerrar sessão de coleta | Em aberto |
 | UC-004 | Selecionar voo para debriefing | Em aberto |
 | UC-005 | Visualizar dados do debriefing | Em aberto |

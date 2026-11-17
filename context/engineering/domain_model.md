@@ -49,7 +49,7 @@ Valor de um parâmetro em um instante específico de uma sessão.
 
 Frequência de coleta: 1 leitura por segundo por parâmetro ativo (revisável nos ciclos de desenvolvimento).
 
-O `valor` é gravado bruto, como vem do SimConnect. Correções de sinal para exibição (arfagem positiva com o nariz para cima; rolagem em valor absoluto com E/D) são feitas só no renderer (decisão do HITL-1 do loop-002; o sentido real ainda será confirmado no Windows com MSFS).
+O `valor` é gravado bruto, como vem do SimConnect. Correções de sinal para exibição (arfagem positiva com o nariz para cima; rolagem em valor absoluto com E/D) são feitas só no renderer (decisão do HITL-1 do loop-002; sentido confirmado no teste manual no Windows com o MSFS 2024).
 
 ## Tipos de transporte
 

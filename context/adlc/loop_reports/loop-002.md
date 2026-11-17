@@ -4,7 +4,7 @@ Loop: 002
 Data de início: 2026-11-16
 Item do backlog: 2 — Visualizar parâmetros em tempo real
 Caso de uso: UC-002
-Fase atual: Documentar (HITL-4 aprovado; aguardando o teste manual no Windows para encerrar)
+Fase atual: concluído
 
 ---
 HITL-1 aprovado em 2026-11-16
@@ -13,6 +13,8 @@ HITL-3 retorno: corrigir 3 itens menores de usabilidade e qualidade (aviso de se
 HITL-2 (2ª rodada) aprovado em 2026-11-16, com revisão curta (funcionalidade e usabilidade)
 HITL-3 aprovado em 2026-11-16
 HITL-4 aprovado em 2026-11-16 (encerramento condicionado ao teste manual no Windows, conforme o HITL-1)
+Teste manual no Windows com MSFS 2024 aprovado em 2026-11-16 (v0.2.0): estados, sinais de arfagem e rolagem, atraso e grade conferidos
+Loop encerrado em 2026-11-16
 
 
 ## 1.1 Especificação de negócio
