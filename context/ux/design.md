@@ -184,7 +184,7 @@ Regra: estado de sessão ativa usa `color-success` + rótulo "Sessão ativa". Es
 - Qualquer gráfico pode ser maximizado para ocupar toda a área de conteúdo.
 
 ### Comportamento em janelas menores
-- A janela tem tamanho mínimo de 640 x 480 px (loop-005), para a barra superior com a navegação não cortar o indicador de estado (antes, abaixo de cerca de 430 px, ele ficava cortado). A conferência no Windows faz parte do roteiro manual do loop-005.
+- A janela tem tamanho mínimo de 640 x 480 px (loop-005), para a barra superior com a navegação não cortar o indicador de estado (antes, abaixo de cerca de 430 px, ele ficava cortado). Conferido no teste manual no Windows do loop-005 (v0.5.0).
 - A grade do painel de tempo real tem 4 colunas acima de 900px, 2 colunas entre 600px e 900px e 1 coluna abaixo de 600px, sempre na ordem dos grupos (decisão do HITL-1 do loop-003).
 - Com 12 cards, larguras de 900px ou menos podem exigir rolagem vertical para ver todos os parâmetros (consequência aceita da grade 4/2/1; ver "Em aberto e débitos de UX").
 - A 2 colunas, cada grupo ocupa duas linhas da grade e a divisão entre grupos deixa de ser visível.

@@ -4,7 +4,7 @@ Loop: 005
 Data de início: 2026-11-17
 Item do backlog: 4 — Selecionar voo para debriefing
 Caso de uso: UC-004
-Fase atual: Documentar (HITL-4 aprovado; aguardando o teste manual no Windows para encerrar)
+Fase atual: concluído
 
 ---
 HITL-1 aprovado em 2026-11-17
@@ -13,6 +13,8 @@ HITL-3 retorno (rodada curta única): pacote de acessibilidade e layout — 2026
 HITL-2 (rodada curta) aprovado em 2026-11-17, com revisão curta (usabilidade)
 HITL-3 aprovado em 2026-11-17
 HITL-4 aprovado em 2026-11-17 (encerramento condicionado ao teste manual no Windows)
+Teste manual no Windows aprovado em 2026-11-17 (v0.5.0): barra com navegação, lista de voos com data, hora e duração locais, tela provisória, volta automática ao painel, sessão ativa fora da lista, atualização ao encerrar, teclado, largura mínima da janela e leitor de tela
+Loop encerrado em 2026-11-17
 
 ## 1.1 Especificação de negócio
 
