@@ -3,13 +3,12 @@
 > Propósito: Funcionalidades em ordem de prioridade, uma por loop.
 > Atualizar quando: um loop começar ou terminar, ou a prioridade mudar.
 > Relacionados: [../product/use_cases.md](../product/use_cases.md)
-> Última atualização: 2026-11-17 · loop-006 (item 5 em andamento; débitos e itens 11, 12 e 13)
+> Última atualização: 2026-11-17 · loop-006 encerrado
 
 ## Em andamento
 
 | Número | Nome curto | Caso de uso | Resultado visível ao final |
 |--------|-----------|-------------|---------------------------|
-| 5 | Visualizar dados do debriefing | UC-005 | Piloto revisa parâmetros registrados ao longo do tempo |
 
 ## Próximos (em ordem)
 
@@ -32,6 +31,7 @@
 | 3 | Encerrar sessão de coleta | UC-003 | Motor parado com a aeronave no solo por 15 s encerra a sessão, grava a hora de fim e mostra "Sessão encerrada. Dados salvos." |
 | 4 | Selecionar voo para debriefing | UC-004 | Botões "Painel" e "Voos" na barra superior; a lista mostra os voos encerrados (data, hora de início e duração, do mais recente ao mais antigo) e um clique abre a tela provisória do voo com "Debriefing disponível em breve" |
 | 7 | Coletar posição, motor e flapes | UC-006 | Painel exibe e grava latitude, longitude, manete, mistura, RPM e flapes, com "N/A" para itens que a aeronave não tem |
+| 5 | Visualizar dados do debriefing | UC-005 | Tela do voo com reprodução (1×/4×/16× e linha do tempo), trajetória no mapa, painel de instrumentos e perfil vertical, só com valores gravados ("—", "N/A" e "Sem dados neste voo") |
 
 ## Fora do escopo
 

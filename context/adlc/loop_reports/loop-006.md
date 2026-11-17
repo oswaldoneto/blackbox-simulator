@@ -4,7 +4,7 @@ Loop: 006
 Data de início: 2026-11-17
 Item do backlog: 5 — Visualizar dados do debriefing
 Caso de uso: UC-005
-Fase atual: concluído (aguardando teste manual no Windows)
+Fase atual: concluído
 
 ## Resumo (modelo de loop_report.md)
 
@@ -66,6 +66,7 @@ HITL-2 (rodada curta) aprovado em 2026-11-17.
 HITL-3 (rodada curta) em 2026-11-17: os dois efeitos dos próprios ajustes são corrigidos dentro da rodada (tracejado distinto do azul; mensagem de voo sem leituras também em `role="status"`).
 HITL-3 aprovado em 2026-11-17; os demais não bloqueantes viram débito.
 HITL-4 aprovado em 2026-11-17: a legenda mantém "Tracejado"; os itens 11, 12 e 13 ficam no fim do backlog. O encerramento depende do teste manual no Windows.
+Loop encerrado em 2026-11-17, por decisão do humano, antes do teste manual no Windows. O roteiro (voo real, voo da v0.2.0, mistura N/A, voo longo com o log de tempo, setas do controle, foco no 1×, NVDA e janela de 640×480) fica pendente para a v0.6.0.
 
 ## 1.1 Especificação de negócio
 
