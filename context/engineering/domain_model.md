@@ -3,7 +3,7 @@
 > Propósito: Entidades e dados que o produto trata, e como se relacionam.
 > Atualizar quando: uma entidade, atributo ou relacionamento mudar.
 > Relacionados: [../product/glossary.md](../product/glossary.md), [../product/business_rules.md](../product/business_rules.md)
-> Última atualização: 2026-11-17 · loop-006
+> Última atualização: 2026-11-17 · loop-007
 
 ## Entidades
 
@@ -101,7 +101,7 @@ Não são entidades do domínio nem são persistidos. Existem só para levar dad
 | Tipo | Forma | Uso |
 |------|-------|-----|
 | EstadoConexao | `'conectado' \| 'desconectado'` | Estado da conexão do main com o SimConnect; base do estado "sem sinal" do painel |
-| PacoteDeLeituras | `{ sessaoId, timestamp, leituras: { parametroId, valor }[] }` | Leituras de um ciclo de coleta (1 s), enviadas ao renderer só com sessão ativa, num caminho separado da gravação das LeituraDeParâmetro no banco. Até 12 leituras; os parâmetros N/A da sessão ficam de fora |
+| PacoteDeLeituras | `{ sessaoId, timestamp, leituras: { parametroId, valor }[] }` | Leituras de um ciclo de coleta (1 s), enviadas ao renderer só com sessão ativa, num caminho separado da gravação das LeituraDeParâmetro no banco. Até 12 leituras; os parâmetros N/A da sessão ficam de fora. Desde o loop-007, no renderer, o pacote troca os valores do painel e também alimenta a janela dos gráficos de linha (`acrescentarPacote`, ADR-012) |
 | ParametroId | união dos slugs de `PARAMETER_IDS` | Identificador de parâmetro conhecido, em `src/shared/parameter-ids.ts`. Usado em `Sessao.parametrosNaoAplicaveis` e em `SerieDeLeituras.parametroId` |
 | SerieDeLeituras | `{ parametroId: ParametroId, instantes: number[], valores: number[] }` | Desde o loop-006 (UC-005). Leituras gravadas de um parâmetro num voo, em colunas: `instantes` são os `timestamp` em ms UTC, em ordem crescente, e `valores[i]` é o valor gravado em `instantes[i]`, sem interpolação |
 | LeiturasDoVoo | `{ sessaoId, series: SerieDeLeituras[] }` | Desde o loop-006 (UC-005). Resposta de `session:get-readings`: as leituras de um voo encerrado entre a hora de início e a hora de fim, inclusive. Só entram os parâmetros com ao menos uma leitura, na ordem de `TODOS_PARAMETER_IDS`; `series: []` é um voo sem leituras. Slug desconhecido ou `timestamp` inválido lido do banco é descartado, com log (`agruparEmSeries`) |
@@ -115,6 +115,13 @@ No renderer, depois de um `session:end-failed`, a `Sessao` é exibida com `statu
 Desde o loop-005, a `Sessao` aberta na tela do voo (UC-004) também é estado de exibição no renderer: vem da lista (`session:list-ended`) e não é guardada nem enviada de volta ao main. Data e hora de início são exibidas no fuso local da máquina (dd/mm/aaaa e HH:mm, 24 h), a partir do `iniciadaEm` em UTC.
 
 Desde o loop-006, as `LeiturasDoVoo` carregadas e o estado da reprodução (instante, velocidade, tocando ou pausado) também são estado de exibição da tela do voo: não são guardados em cache nem enviados de volta ao main, e são descartados ao sair da tela ou abrir outro voo (ADR-011 em [architecture.md](architecture.md)).
+
+Desde o loop-007 (UC-002, gráficos de linha do painel), o painel de tempo real guarda como estado de exibição:
+- a `JanelaDeLeituras` (`src/renderer/components/janela-de-leituras.ts`): `{ series, ultimoInstante }`, com os pontos `{ t, v }` (instante em ms UTC e valor bruto, `PontoNoTempo`) dos últimos 2 minutos de cada parâmetro, por `parametroId`, até 150 por parâmetro, e o instante do último pacote aceito. É montada a partir dos `PacoteDeLeituras` da sessão ativa; os valores são os lidos do SimConnect, não os gravados;
+- `valoresDescartados`: a conexão caiu com a sessão ativa e os valores foram descartados, até chegar um pacote novo;
+- o "agora" dos gráficos (a borda direita), com o valor congelado ao encerrar a sessão.
+
+A janela não é persistida, não é enviada ao main e não é carregada do banco: nasce vazia a cada sessão nova e a cada abertura do app, é mantida na queda de conexão e na troca de tela e congela com a sessão encerrada (ADR-012 em [architecture.md](architecture.md)). O card N/A não tem gráfico (CA-002-18); o parâmetro N/A também não vem no pacote e não entra na janela.
 
 ## Relacionamentos
 

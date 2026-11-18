@@ -3,7 +3,7 @@
 > Propósito: Registro geral dos loops executados, com link para o report de cada um em loop_reports/.
 > Atualizar quando: um loop terminar.
 > Relacionados: [backlog.md](backlog.md), [lessons_learned.md](lessons_learned.md)
-> Última atualização: 2026-11-17 · loop-006
+> Última atualização: 2026-11-17 · loop-007
 
 ## Loops executados
 
@@ -15,6 +15,7 @@
 | 004 | 2026-11-17 | UC-003 — Encerrar sessão de coleta | Entregue (v0.4.0) | [loop-004.md](loop_reports/loop-004.md) |
 | 005 | 2026-11-17 | UC-004 — Selecionar voo para debriefing | Entregue (v0.5.0) | [loop-005.md](loop_reports/loop-005.md) |
 | 006 | 2026-11-17 | UC-005 — Visualizar dados do debriefing | Entregue (v0.6.0); teste manual no Windows pendente | [loop-006.md](loop_reports/loop-006.md) |
+| 007 | 2026-11-17 | UC-002 — Gráficos de linha no painel | Entregue (v0.7.0); teste manual no Windows pendente | [loop-007.md](loop_reports/loop-007.md) |
 
 ## Modelo de report do loop
 

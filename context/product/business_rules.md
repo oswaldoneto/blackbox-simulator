@@ -3,7 +3,7 @@
 > Propósito: Regras de negócio reutilizáveis entre casos de uso, cada uma com um identificador RN-NNN.
 > Atualizar quando: uma regra for criada, alterada ou deixar de valer.
 > Relacionados: [glossary.md](glossary.md)
-> Última atualização: 2026-11-17 · loop-006
+> Última atualização: 2026-11-17 · loop-007
 
 ## Regras
 
@@ -65,20 +65,22 @@ Descrição: Se a aeronave em uso não possui o item de um parâmetro do conjunt
 - Momento: a decisão é tomada pelos dados da aeronave no início da sessão (ao ligar o motor) e vale a sessão toda, mesmo que a aeronave mude durante o voo.
 - Prioridade: N/A vence "Sem sinal" ("—"). Com o sinal perdido ou com a sessão encerrada, o parâmetro N/A continua "N/A". No debriefing, N/A vence também "sem dados" ("—" no instante e "Sem dados neste voo"): o parâmetro aparece "N/A" o voo todo.
 - Sessões antigas: as sessões gravadas antes de existir a lista de parâmetros N/A não têm essa lista; no debriefing, nenhum parâmetro delas aparece como N/A, e os parâmetros sem leitura seguem a RN-008.
-(Alterada em 2026-11-17, loop-003: critério, momento e prioridade explicitados. Alterada em 2026-11-17, loop-006: prioridade sobre "sem dados" e sessões antigas no debriefing.)
+- Gráfico no painel: o card N/A não tem gráfico de linha; mostra "N/A" com a unidade e o texto "A aeronave não possui este item".
+(Alterada em 2026-11-17, loop-003: critério, momento e prioridade explicitados. Alterada em 2026-11-17, loop-006: prioridade sobre "sem dados" e sessões antigas no debriefing. Alterada em 2026-11-17, loop-007: o card N/A não tem gráfico no painel.)
 Aplica-se a: UC-002, UC-003, UC-005, UC-006
 
 ---
 
 RN-008
-Nome: Fidelidade aos dados gravados
-Descrição: O debriefing mostra só os valores gravados, sem inventar dados.
-- Valor no instante: cada parâmetro mostra a última leitura gravada até o instante selecionado, sem interpolar.
-- Sem dados: se passaram 2 s ou mais sem leitura do parâmetro até o instante, o valor aparece "—"; parâmetro aplicável sem nenhuma leitura no voo aparece "Sem dados neste voo".
-- Elementos derivados (trajetória, aeronave no mapa, perfil vertical, ponteiros) só aparecem quando há dados que os sustentem: a linha é interrompida nos trechos sem leituras, a aeronave some sem posição no instante e o mapa vira mensagem de trajetória indisponível sem latitude e longitude gravadas.
+Nome: Fidelidade aos dados
+Descrição: O produto mostra só os valores lidos do simulador ou gravados, sem inventar dados.
+- Debriefing, valor no instante: cada parâmetro mostra a última leitura gravada até o instante selecionado, sem interpolar.
+- Debriefing, sem dados: se passaram 2 s ou mais sem leitura do parâmetro até o instante, o valor aparece "—"; parâmetro aplicável sem nenhuma leitura no voo aparece "Sem dados neste voo".
+- Debriefing, elementos derivados (trajetória, aeronave no mapa, perfil vertical, ponteiros) só aparecem quando há dados que os sustentem: a linha é interrompida nos trechos sem leituras, a aeronave some sem posição no instante e o mapa vira mensagem de trajetória indisponível sem latitude e longitude gravadas.
+- Painel de tempo real: os gráficos de linha não têm nenhum ponto inventado. A linha é interrompida a partir de 2 s sem leitura e na passagem do rumo entre 359° e 000°. Ligar duas leituras seguidas por um segmento reto é desenho, não valor interpolado.
 - A redução de pontos, quando existe, vale só para o desenho e preserva os mínimos e os máximos.
-(Criada em 2026-11-17, loop-006.)
-Aplica-se a: UC-005
+(Criada em 2026-11-17, loop-006. Alterada em 2026-11-17, loop-007: antes "Fidelidade aos dados gravados", só do debriefing; estendida ao painel de tempo real, UC-002.)
+Aplica-se a: UC-002, UC-005
 
 ---
 

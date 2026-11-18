@@ -3,7 +3,7 @@
 > Propósito: Funcionalidades a desenvolver, com os critérios de aceite que guiam os testes e definem quando está pronto.
 > Atualizar quando: um caso de uso for criado, mudar ou tiver os critérios de aceite revistos.
 > Relacionados: [business_rules.md](business_rules.md), [glossary.md](glossary.md), [../engineering/domain_model.md](../engineering/domain_model.md)
-> Última atualização: 2026-11-17 · loop-006
+> Última atualização: 2026-11-17 · loop-007
 
 ## Índice
 
@@ -44,25 +44,43 @@ Critérios de aceite:
 UC-002
 Nome: Visualizar parâmetros em tempo real
 Ator: Piloto
-Objetivo: Acompanhar os parâmetros de voo no painel de tempo real, na janela do Blackbox Simulator, enquanto o voo está em andamento.
+Objetivo: Acompanhar os parâmetros de voo no painel de tempo real, na janela do Blackbox Simulator, enquanto o voo está em andamento: o valor atual de cada parâmetro e o gráfico de linha dos últimos 2 minutos.
 Pré-condições: O Blackbox Simulator está em execução. O painel de tempo real exige uma sessão de coleta ativa (UC-001 foi concluído).
 Fluxo principal:
   1. Quando a sessão fica ativa, o sistema exibe sozinho o painel de tempo real na área principal da própria janela do app, sem ação do piloto e sem segunda janela.
   2. O painel mostra o valor atual de cada um dos 12 parâmetros do conjunto de parâmetros (ver product.md).
-  3. A cada 1 s, mesma cadência da coleta, o painel atualiza os valores com a leitura do simulador, enquanto a sessão está ativa.
+  3. Em cada card aplicável, abaixo do valor, o painel mostra o gráfico de linha do painel com as leituras dos últimos 2 minutos: linha com área clara, a leitura mais recente na borda direita e os limites da escala embaixo. A janela é fixa em 2 minutos, sem seletor, e o valor atual continua mais destacado que o gráfico. O painel exibe a legenda "Gráficos: últimos 2 minutos. A ponta direita da linha é o valor atual."
+  4. A cada 1 s, mesma cadência da coleta, o painel atualiza os valores e os gráficos com a leitura do simulador, enquanto a sessão está ativa. Nenhum ponto é inventado (RN-008).
 Fluxos alternativos:
   A. Sem sessão ativa: no lugar do painel, o sistema exibe a orientação "Inicie o simulador e ligue o motor para começar".
-  B. Sessão encerrada: o painel mantém os últimos valores congelados e exibe o aviso "Sessão encerrada". Ocorre quando a sessão encerra pelo UC-003 (RN-004), inclusive quando a gravação do encerramento falha, e dura até o motor ser religado (nova sessão) ou o app ser fechado; ao reabrir o app, aparece a orientação do fluxo A. Se a sessão encerrar com a conexão caída, os valores congelados ficam como "—", porque não há valor confiável para manter (decisão do HITL-4 do loop-002). Parâmetros N/A continuam "N/A" (RN-007).
-  C. Sem sinal durante a sessão (conexão com o simulador perdida, ou 2 s sem leitura nova com a conexão aberta): os valores viram "—" e o painel exibe o aviso "Sem sinal do simulador". Quando as leituras voltam, os valores voltam e o aviso some. Parâmetros N/A continuam "N/A", porque N/A tem prioridade sobre "—" (RN-007).
-Fora do escopo deste caso de uso: maximizar e reduzir cards do painel (vira item do backlog).
-Regras aplicadas: RN-001, RN-002, RN-003, RN-004, RN-006, RN-007
-Critérios de aceite:
-  - Dado que uma sessão fica ativa, quando o Blackbox Simulator está aberto, então o painel de tempo real aparece sozinho na área principal da janela do app, sem ação do piloto, com os parâmetros do conjunto de parâmetros.
-  - Dado que o painel está exibido, quando uma nova leitura chega do simulador, então o painel é atualizado a cada 1 s, com atraso máximo de 2 s entre o simulador e o painel, sem enviar comandos nem alterar o estado do simulador.
-  - Dado que não há sessão ativa, quando o piloto olha a janela do app, então o sistema exibe a orientação "Inicie o simulador e ligue o motor para começar".
-  - Dado que a sessão foi encerrada, quando o painel deixa de receber leituras, então os últimos valores ficam congelados e o painel exibe o aviso "Sessão encerrada".
-  - Dado que uma sessão está ativa, quando a conexão com o simulador cai ou passam 2 s sem leitura nova, então os valores viram "—" e o painel exibe o aviso "Sem sinal do simulador"; quando as leituras voltam, os valores voltam a ser exibidos.
-  - Dado que um parâmetro é N/A na sessão (RN-007), quando o sinal é perdido ou a sessão é encerrada, então o card desse parâmetro continua mostrando "N/A", e não "—".
+  B. Sessão encerrada: o painel mantém os últimos valores e os gráficos congelados, na cor do grupo, e exibe o aviso "Sessão encerrada". Os gráficos incluem as leituras da espera de 15 s do encerramento (o painel não corta essa espera, ao contrário do debriefing). Ocorre quando a sessão encerra pelo UC-003 (RN-004), inclusive quando a gravação do encerramento falha, e dura até o motor ser religado (nova sessão) ou o app ser fechado; ao reabrir o app, aparece a orientação do fluxo A. Se a sessão encerrar com a conexão caída, os valores congelados ficam como "—", porque não há valor confiável para manter (decisão do HITL-4 do loop-002), e a linha dos gráficos fica cinza. Parâmetros N/A continuam "N/A" (RN-007).
+  C. Sem sinal durante a sessão (conexão com o simulador perdida, ou 2 s sem leitura nova com a conexão aberta): os valores viram "—", o painel exibe o aviso "Sem sinal do simulador" e a linha dos gráficos fica cinza e continua andando: a falha cresce à direita e nenhum ponto é inventado (RN-008). Quando as leituras voltam, os valores voltam, o aviso some, a linha volta à cor do grupo e a falha continua visível até sair da janela de 2 minutos. Parâmetros N/A continuam "N/A", porque N/A tem prioridade sobre "—" (RN-007).
+  D. Nova sessão e reconexão: uma nova sessão (motor religado, RN-003) zera os gráficos. A reconexão com o simulador na mesma sessão mantém a linha, com a falha do período sem sinal.
+  E. Troca de tela: ao abrir a lista de voos ou a tela do voo e voltar ao painel, os gráficos mantêm os últimos 2 minutos, porque as leituras continuam chegando em qualquer tela.
+  F. Reabertura do app: os gráficos começam vazios a partir da confirmação da sessão (UC-003, fluxo D); o histórico gravado no banco não é carregado no painel.
+Fora do escopo deste caso de uso: seletor de janela dos gráficos e carga do histórico pelo banco (seriam itens novos do backlog); os itens do item 10 do backlog (focar num parâmetro com "Reduzir", títulos dos grupos, rolagem abaixo de 900 px de altura e os débitos das notificações, da lista e da tela do voo).
+Regras aplicadas: RN-001, RN-002, RN-003, RN-004, RN-006, RN-007, RN-008
+Critérios de aceite (CA-002-1 a CA-002-6 numerados e CA-002-7 a CA-002-19 criados no loop-007; aprovados no HITL-1 do loop-007):
+  - CA-002-1: Dado que uma sessão fica ativa, quando o Blackbox Simulator está aberto, então o painel de tempo real aparece sozinho na área principal da janela do app, sem ação do piloto, com os parâmetros do conjunto de parâmetros.
+  - CA-002-2: Dado que o painel está exibido, quando uma nova leitura chega do simulador, então o valor e o gráfico são atualizados a cada 1 s, com atraso máximo de 2 s entre o simulador e o painel, sem enviar comandos nem alterar o estado do simulador.
+  - CA-002-3: Dado que não há sessão ativa, quando o piloto olha a janela do app, então o sistema exibe a orientação "Inicie o simulador e ligue o motor para começar".
+  - CA-002-4: Dado que a sessão foi encerrada, quando o painel deixa de receber leituras, então os últimos valores e os gráficos ficam congelados na cor do grupo, incluindo as leituras da espera de 15 s, e o painel exibe o aviso "Sessão encerrada"; se a sessão encerrou com a conexão caída, os valores ficam "—" e a linha fica cinza.
+  - CA-002-5: Dado que uma sessão está ativa, quando a conexão com o simulador cai ou passam 2 s sem leitura nova, então os valores viram "—", o painel exibe o aviso "Sem sinal do simulador", a linha fica cinza e continua andando, com a falha crescendo à direita, e nenhum ponto é inventado; quando as leituras voltam, os valores voltam a ser exibidos e a falha continua visível até sair da janela.
+  - CA-002-6: Dado que um parâmetro é N/A na sessão (RN-007), quando o sinal é perdido ou a sessão é encerrada, então o card desse parâmetro continua mostrando "N/A", e não "—".
+  - CA-002-7: Dado que o painel está exibido, quando o piloto olha um card aplicável, então ele tem um gráfico de linha com área clara dos últimos 2 minutos, a leitura mais recente na borda direita e os limites da escala embaixo; a janela é fixa e o valor atual continua mais destacado que o gráfico.
+  - CA-002-8: Dado que o painel está exibido, quando os gráficos são desenhados, então as escalas são: fixa no rumo (0 a 360°) e em manete, mistura e flapes (0 a 100 %); zero no centro na VS, na arfagem e na rolagem; automática, com folga de 15 % e amplitude mínima, na altitude (200 ft), IAS (20 kt), latitude e longitude (0,01°) e RPM (500); a VS, a arfagem e a rolagem têm amplitude mínima de ±300 fpm, ±5° e ±15°; a escala de IAS e RPM nunca desce abaixo de 0.
+  - CA-002-9: Dado que um parâmetro com escala automática fica com valor constante, quando o gráfico é desenhado, então a linha fica reta no meio da escala, que nunca tem amplitude zero. Na escala de zero no centro e na fixa, a linha não vai para o meio: o meio é o zero ou a faixa configurada. IAS e RPM constantes em 0 ficam no fundo da escala, porque a escala não desce abaixo de 0.
+  - CA-002-10: Dado que um valor sai da escala fixa (por exemplo, a manete com reverso), quando o gráfico é desenhado, então a linha para no limite da escala e o número mostra o valor real.
+  - CA-002-11: Dado que o rumo passa de 359° para 000° (ou o contrário), quando o gráfico é desenhado, então a linha é interrompida na passagem; os limites da escala aparecem como "000" e "360".
+  - CA-002-12: Dado que passam 2 s ou mais entre duas leituras, quando o gráfico é desenhado, então a linha é interrompida nesse trecho.
+  - CA-002-13: Dado que o painel está exibido, quando o piloto olha os gráficos, então há uma cor por grupo (azul para voo, laranja para atitude e posição, verde para motor e configuração), e o rótulo continua identificando o parâmetro.
+  - CA-002-14: Dado que a sessão tem menos de 2 minutos de leituras, quando o gráfico é desenhado, então o eixo continua com 2 minutos, a linha fica à direita e uma única leitura aparece como ponto.
+  - CA-002-15: Dado que o painel tem gráficos, quando uma nova sessão começa, então os gráficos são zerados; quando a conexão volta na mesma sessão, então a linha é mantida, com a falha.
+  - CA-002-16: Dado que uma sessão está ativa, quando o piloto troca de tela e volta ao painel, então os gráficos mantêm os últimos 2 minutos.
+  - CA-002-17: Dado que o app foi fechado com uma sessão ativa, quando o app é reaberto e a sessão é confirmada, então os gráficos começam vazios a partir da confirmação.
+  - CA-002-18: Dado que um parâmetro é N/A na sessão, quando o card é exibido, então mostra "N/A" com a unidade, sem gráfico, com o texto "A aeronave não possui este item" e o rótulo acessível "<rótulo>: não aplicável".
+  - CA-002-19: Dado que o piloto usa leitor de tela, quando chega a um card aplicável, então o desenho do gráfico fica oculto e o grupo é lido como "<rótulo>: <valor> <unidade>; últimos 2 minutos: de <mín> a <máx> <unidade>", com o mínimo e o máximo das leituras da janela; não há anúncio automático (`aria-live`). Com a janela vazia, a parte dos 2 minutos é omitida; no sem sinal com leituras na janela, o grupo lê "sem sinal; últimos 2 minutos: …"; com o rumo passando pelo norte, a faixa é o menor arco (ex.: "de 350 a 010") (HITL-1 do loop-007, T6 e T7).
+(Critérios revistos no loop-007: os 6 critérios existentes foram numerados; CA-002-2, CA-002-4 e CA-002-5 passaram a incluir os gráficos.)
 
 ---
 
@@ -119,7 +137,7 @@ Fluxo principal:
   3. Cada voo aparece como um card com a data (dd/mm/aaaa) e a hora de início (HH:mm, 24 h), no fuso local da máquina, e a duração (h:mm:ss, horas sem limite; duração 0 aparece "0:00:00"). A hora de fim e a aeronave não aparecem.
   4. O piloto clica num voo (ou chega a ele com Tab e tecla Enter).
   5. O sistema abre a tela do voo, com o título "Voo de dd/mm/aaaa", a hora de início, a duração e o botão "Voltar à lista" (Esc também volta à lista). O conteúdo do debriefing (carga das leituras, reprodução, trajetória, instrumentos e perfil) é do UC-005.
-  6. Para voltar ao painel de tempo real, o piloto clica em "Painel" na barra superior.
+  6. Para voltar ao painel de tempo real, o piloto clica em "Painel" na barra superior. Com a sessão ativa, o painel mostra os valores ao vivo e os gráficos com os últimos 2 minutos (UC-002, fluxo E).
 Fluxos alternativos:
   A. Nenhum voo: a lista exibe "Nenhum voo registrado. Inicie o simulador e ligue o motor para começar." Vale também quando só existe a sessão ativa.
   B. Sessão começa (RN-003) com a lista ou a tela do voo aberta: o sistema mostra o painel de tempo real sozinho, com "Coleta iniciada" (UC-002 inalterado).
@@ -134,12 +152,12 @@ Critérios de aceite:
   - CA-004-1: Dado que existem sessões encerradas, quando o piloto clica em "Voos", então a lista exibe todas as sessões encerradas (inclusive curtas, de duração 0 e antigas), sem a sessão ativa, ordenadas pela hora de início da mais recente para a mais antiga, cada uma com data dd/mm/aaaa, hora de início HH:mm (24 h) no fuso local da máquina e duração h:mm:ss (ex.: "0:00:00", "25:03:10").
   - CA-004-2: Dado que a lista de voos está exibida, quando o piloto clica num voo (ou o foca com Tab e tecla Enter), então o sistema abre a tela do voo com o título "Voo de dd/mm/aaaa", a hora de início, a duração e o botão "Voltar à lista", com o debriefing do UC-005; clicar em "Voltar à lista" ou teclar Esc volta à lista.
   - CA-004-3: Dado que não existe sessão encerrada (inclusive quando só existe a sessão ativa), quando o piloto clica em "Voos", então o sistema exibe "Nenhum voo registrado. Inicie o simulador e ligue o motor para começar."
-  - CA-004-4: Dado que uma sessão está ativa, quando o piloto abre a lista de voos e volta pelo botão "Painel", então a barra superior e a barra de estado ficaram visíveis o tempo todo, a sessão ativa não apareceu na lista, a coleta continuou e o painel mostra os valores ao vivo.
+  - CA-004-4: Dado que uma sessão está ativa, quando o piloto abre a lista de voos e volta pelo botão "Painel", então a barra superior e a barra de estado ficaram visíveis o tempo todo, a sessão ativa não apareceu na lista, a coleta continuou e o painel mostra os valores ao vivo e os gráficos com os últimos 2 minutos (CA-002-16).
   - CA-004-5: Dado que a lista de voos ou a tela do voo está aberta, quando uma sessão começa, então o sistema mostra o painel de tempo real sozinho, com "Coleta iniciada".
   - CA-004-6: Dado que a lista de voos está aberta, quando uma sessão encerra, então a lista atualiza sozinha com o voo novo no topo, sem trocar de tela.
   - CA-004-7: Dado que o piloto abre a lista de voos, quando a primeira carga falha, então o sistema exibe "Não foi possível carregar a lista de voos. Feche e abra o aplicativo para tentar de novo." sem nova tentativa automática; quando uma nova busca falha com a lista já exibida, então a lista anterior continua na tela.
   - CA-004-8: Dado que o piloto abre a lista de voos, quando a carga demora mais de 500 ms, então o sistema exibe "Carregando voos..." até a lista (ou o erro) aparecer.
-(Critérios revistos no loop-005: o antigo "todas as sessões" virou só as encerradas; a seleção abre a tela provisória do voo, sem carregar dados, até o UC-005; o estado vazio ganhou texto oficial. Revisto no loop-006: a tela do voo deixou de ser provisória e o aviso "Debriefing disponível em breve" saiu.)
+(Critérios revistos no loop-005: o antigo "todas as sessões" virou só as encerradas; a seleção abre a tela provisória do voo, sem carregar dados, até o UC-005; o estado vazio ganhou texto oficial. Revisto no loop-006: a tela do voo deixou de ser provisória e o aviso "Debriefing disponível em breve" saiu. Revisto no loop-007: o CA-004-4 passou a incluir os gráficos dos últimos 2 minutos.)
 
 ---
 
@@ -200,12 +218,12 @@ Fluxo principal:
   4. O painel de tempo real exibe os 12 parâmetros do conjunto, nos formatos definidos em product.md.
 Fluxos alternativos:
   A. Aeronave sem um dos itens: o parâmetro aparece como "N/A" e nenhuma leitura dele é gravada (RN-007). Mistura é N/A se o motor não é a pistão; flapes são N/A se a aeronave não tem flapes. Manete, RPM, latitude e longitude nunca são N/A. Um 0 válido (flapes recolhidos, RPM com motor parado) continua 0.
-  B. Sinal perdido ou sessão encerrada: os parâmetros N/A continuam "N/A"; os demais seguem o UC-002 ("—" ou valores congelados).
+  B. Sinal perdido ou sessão encerrada: os parâmetros N/A continuam "N/A"; os demais seguem o UC-002 ("—" ou valores congelados). O card N/A não tem gráfico de linha: mostra "N/A" com a unidade e o texto "A aeronave não possui este item" (CA-002-18).
 Regras aplicadas: RN-001, RN-002, RN-005, RN-006, RN-007
 Critérios de aceite:
   - CA-006-1: Dado que uma sessão está ativa, quando o simulador envia as leituras, então latitude, longitude, manete, mistura, RPM e flapes são gravados a cada 1 s junto com os parâmetros já existentes.
   - CA-006-2: Dado que uma sessão está ativa, quando o painel de tempo real é exibido, então os 12 parâmetros do conjunto aparecem, cada um com o seu valor atual.
-  - CA-006-4: Dado que a aeronave não possui um dos itens (motor que não é a pistão, para a mistura; aeronave sem flapes, para os flapes), quando a sessão inicia, então o card desse parâmetro mostra "N/A" a sessão toda, inclusive com sinal perdido ou sessão encerrada, e nenhuma leitura dele é gravada.
+  - CA-006-4: Dado que a aeronave não possui um dos itens (motor que não é a pistão, para a mistura; aeronave sem flapes, para os flapes), quando a sessão inicia, então o card desse parâmetro mostra "N/A" a sessão toda, inclusive com sinal perdido ou sessão encerrada, sem gráfico de linha e com o texto "A aeronave não possui este item", e nenhuma leitura dele é gravada.
   - CA-006-5: Dado que os flapes estão em qualquer posição, quando o valor é exibido, então ele aparece em % de extensão física, inteiro, de 0 a 100; flapes recolhidos aparecem como 0, não como "N/A".
   - CA-006-6: Dado que uma sessão está ativa, quando latitude e longitude são exibidas, então aparecem em graus decimais com 5 casas e hemisfério em letra (ex.: "23,55052 S", "46,63331 O"), e o banco guarda o valor com precisão total.
   - CA-006-7: Dado que uma sessão está ativa, quando manete, mistura e RPM são exibidos, então aparecem como inteiros (manete e mistura em %, manete com reverso em % negativo; RPM com separador de milhar).

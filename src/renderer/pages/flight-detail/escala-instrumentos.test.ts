@@ -4,8 +4,6 @@ import {
   fracaoNaEscala,
   angulosDoAltimetro,
   rotacaoDaRosa,
-  arfagemNarizParaCima,
-  rolagemParaDireita,
   movimentoDoHorizonte,
   anguloDoFlape,
   ESCALA_IAS,
@@ -62,19 +60,6 @@ describe('rotacaoDaRosa', () => {
     expect(rotacaoDaRosa(360)).toBe(0)
     expect(rotacaoDaRosa(90)).toBe(-90)
     expect(rotacaoDaRosa(-90)).toBe(-270)
-  })
-})
-
-// CA-005-2: sinal de arfagem e rolagem corrigido
-describe('sinais de arfagem e rolagem', () => {
-  it('deve exibir arfagem positiva com o nariz para cima (valor bruto positivo é nariz para baixo)', () => {
-    expect(arfagemNarizParaCima(-5)).toBe(5)
-    expect(arfagemNarizParaCima(5)).toBe(-5)
-  })
-
-  it('deve exibir rolagem positiva para a direita (valor bruto positivo é para a esquerda)', () => {
-    expect(rolagemParaDireita(-10)).toBe(10)
-    expect(rolagemParaDireita(10)).toBe(-10)
   })
 })
 

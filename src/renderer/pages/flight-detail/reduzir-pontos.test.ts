@@ -1,40 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import {
-  segmentarPorFalhas,
-  pontosDaSerie,
-  reduzirSegmento,
-  VALOR_DO_PONTO,
-} from './reduzir-pontos'
-import type { PontoNoTempo } from './reduzir-pontos'
+import { pontosDaSerie, reduzirSegmento, VALOR_DO_PONTO } from './reduzir-pontos'
+import type { PontoNoTempo } from '../../components/segmentar-serie'
 
 function p(t: number, v: number): PontoNoTempo {
   return { t, v }
 }
-
-// CA-005-8: trecho interrompido no desenho
-describe('segmentarPorFalhas', () => {
-  it('deve devolver lista vazia sem pontos', () => {
-    expect(segmentarPorFalhas([])).toEqual([])
-  })
-
-  it('deve manter num trecho só intervalos de até 2000 ms', () => {
-    const pontos = [p(0, 1), p(1000, 2), p(3000, 3)]
-    expect(segmentarPorFalhas(pontos)).toEqual([pontos])
-  })
-
-  it('deve abrir trecho novo num intervalo maior que 2000 ms', () => {
-    const pontos = [p(0, 1), p(1000, 2), p(3001, 3), p(4000, 4), p(10_000, 5)]
-    expect(segmentarPorFalhas(pontos)).toEqual([
-      [p(0, 1), p(1000, 2)],
-      [p(3001, 3), p(4000, 4)],
-      [p(10_000, 5)],
-    ])
-  })
-
-  it('deve aceitar outro limite', () => {
-    expect(segmentarPorFalhas([p(0, 1), p(600, 2)], 500)).toHaveLength(2)
-  })
-})
 
 describe('pontosDaSerie', () => {
   it('deve juntar instantes e valores, cortando no menor tamanho', () => {

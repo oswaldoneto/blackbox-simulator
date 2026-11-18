@@ -7,7 +7,7 @@ import {
 } from './leitura-do-mostrador'
 import type { LeituraDoMostrador } from './leitura-do-mostrador'
 import { leituraNoInstante } from './catalogo'
-import { caminhoDaLinha } from './caminho-svg'
+import { caminhoDaLinha } from '../../components/caminho-svg'
 import { PARAMETER_IDS } from '../../../shared/parameter-ids'
 import type { ParametroDeVoo, SerieDeLeituras } from '../../../shared/types'
 

@@ -3,12 +3,12 @@
 > Propósito: Diretrizes de design da interface gráfica.
 > Atualizar quando: mudar um padrão visual ou entrar um componente novo.
 > Relacionados: [usability.md](usability.md)
-> Última atualização: 2026-11-17 · loop-006
+> Última atualização: 2026-11-17 · loop-007
 
 ## Princípios visuais
 
 - **Dados em evidência.** O conteúdo (números, gráficos) ocupa o máximo de espaço. Chrome e decoração são mínimos.
-- **Hierarquia clara.** O valor atual de um parâmetro é sempre maior e mais visível que seu rótulo e histórico.
+- **Hierarquia clara.** O valor atual de um parâmetro é sempre mais destacado que seu rótulo e seu histórico. Desde o loop-007, o gráfico de linha do painel ocupa mais área que o valor; o destaque do valor vem do tamanho da fonte (24px contra 11 a 12px), da cor `color-text-primary` e da posição no topo do card, logo abaixo do rótulo (CA-002-7).
 - **Consistência de layout.** Painéis e cards seguem a mesma estrutura em todas as telas, para que o piloto encontre a informação pelo hábito, não pela busca.
 - **Tema claro.** A interface usa fundo branco/cinza claro para funcionar bem em ambientes com luz ambiente variada.
   - Exceção decidida (HITL-1 do loop-006): o painel de instrumentos do debriefing (UC-005) é escuro, para imitar um painel de avião. O resto da tela do voo (cabeçalho, reprodução, trajetória e perfil vertical) segue o tema claro. Os tokens do painel escuro são os `color-panel-*`, com contraste conferido (ver "Cores do debriefing").
@@ -28,11 +28,30 @@
 | `color-warning` | `#F1C21B` | Alertas não críticos |
 | `color-error` | `#DA1E28` | Erros, falha de conexão |
 | `color-chart-1` | `#0F62FE` | Primeira série de gráfico |
-| `color-chart-2` | `#FF832B` | Segunda série de gráfico |
+| `color-chart-2` | `#EB6200` | Segunda série de gráfico (era `#FF832B` até o loop-007) |
 | `color-chart-3` | `#24A148` | Terceira série de gráfico |
 | `color-chart-4` | `#8A3FFC` | Quarta série de gráfico |
 
 Regra: estado de sessão ativa usa `color-success` + rótulo "Sessão ativa". Estado encerrado usa `color-text-secondary` + rótulo "Encerrada". Cor nunca é o único indicador de estado.
+
+### Cores do gráfico de linha do painel (loop-007, UC-002)
+
+Tokens definidos em `src/renderer/styles/global.css` (decisão T11 do HITL-1 do loop-007: reaproveitar os `color-chart-*`, trocar o 2 para `#EB6200` e criar o cinza e as áreas). O `color-chart-2` foi escurecido e o cinza criado para as linhas chegarem a 3:1 (decisão 15 da 1.1, opção b; antes, o laranja tinha cerca de 2,5:1 e o cinza do protótipo, cerca de 2,4:1). Contrastes medidos no loop-007, contra `color-surface` (branco) e contra a área do próprio grupo:
+
+| Token | Hex | Uso | Contra o branco | Contra a área |
+|-------|-----|-----|-----------------|---------------|
+| `color-chart-1` | `#0F62FE` | Linha do grupo voo | 5,00:1 | 4,26:1 |
+| `color-chart-2` | `#EB6200` | Linha do grupo atitude e posição | 3,34:1 | 3,09:1 |
+| `color-chart-3` | `#24A148` | Linha do grupo motor e configuração | 3,35:1 | 3,07:1 |
+| `color-chart-no-signal` | `#8D8D8D` | Linha cinza (sem sinal e encerrada com valores descartados) | 3,32:1 | 3,07:1 |
+| `color-chart-1-fill` | `#E5EDFF` | Área sob a linha do grupo voo | decorativo | — |
+| `color-chart-2-fill` | `#FFF4ED` | Área sob a linha do grupo atitude e posição (era `#FFF0E5`, com 3,00:1; clareada na rodada curta) | decorativo | — |
+| `color-chart-3-fill` | `#ECF8EF` | Área sob a linha do grupo motor e configuração | decorativo | — |
+| `color-chart-no-signal-fill` | `#F5F6F8` | Área sob a linha cinza (era `#F2F4F7`, com 3,01:1; clareada na rodada curta) | decorativo | — |
+
+- A margem sobre 3:1 contra a área é curta no laranja, no verde e no cinza (cerca de 3,1:1); ver "Em aberto".
+- A linha de meio do gráfico usa `color-profile-grid` (`#EEF0F3`), o mesmo token da grade do perfil vertical do debriefing (uso compartilhado; decorativo).
+- Variável de medida: `--altura-grafico-painel: 84px`, a altura do bloco do gráfico (desenho de 64px, 4px de espaço e 16px de limites). É usada no gráfico e na caixa N/A, para os cards da mesma linha terem a mesma altura.
 
 ### Cores do debriefing (loop-006, UC-005)
 
@@ -94,36 +113,64 @@ Trajetória e perfil vertical (tema claro):
 
 ### Indicador de parâmetro
 - Usado em: painel de tempo real (UC-002).
-- Estrutura: card com fundo `color-surface`, borda `color-border`, raio 4px, padding 16px; rótulo do parâmetro no topo e, abaixo, valor e unidade alinhados pela linha de base.
+- Estrutura: card com fundo `color-surface`, borda `color-border`, raio 4px, padding 16px, 8px entre os blocos; de cima para baixo: rótulo do parâmetro, valor e unidade alinhados pela linha de base e, desde o loop-007, o gráfico de linha do painel (ver "Gráfico de linha do painel"). O card fica com cerca de 181px de altura.
 - Exibe: rótulo do parâmetro (tipografia Rótulo, `color-text-secondary`), valor atual (Valor de parâmetro, `color-text-primary`), unidade como rótulo à parte (Rótulo, `color-text-secondary`). O valor segue as regras de formatação de [usability.md](usability.md).
 - A linha de valor e unidade quebra (`flex-wrap: wrap`): quando o valor é longo (ex.: "123,45678 O" em card estreito), a unidade desce para a linha de baixo em vez de estourar o card (loop-003, confirmado no HITL-2).
 - Estados:
   - **normal:** valor em `color-text-primary`.
   - **sem sinal:** valor substituído por "—" em `color-text-secondary`, para cumprir o contraste de 4,5:1 (decisão do HITL-1 do loop-002, que substitui o antigo "texto desabilitado").
-  - **N/A (não aplicável):** a aeronave não possui o item (RN-007, UC-006). O valor é substituído por "N/A" no mesmo estilo do "—" (`color-text-secondary`); a unidade continua visível (decisão do HITL-1 do loop-003).
+  - **N/A (não aplicável):** a aeronave não possui o item (RN-007, UC-006). O valor é substituído por "N/A" no mesmo estilo do "—" (`color-text-secondary`); a unidade continua visível (decisão do HITL-1 do loop-003). Desde o loop-007, o card N/A não tem gráfico: no lugar dele fica uma caixa com borda tracejada 1px `color-border`, raio 4px, altura `--altura-grafico-painel` (84px, a mesma do gráfico), com o texto "A aeronave não possui este item" centralizado (IBM Plex Sans 12px/400, `color-text-secondary`) (CA-002-18).
 - Precedência dos estados do card: N/A, depois "—", depois valor. O card N/A continua "N/A" com sinal perdido e com a sessão encerrada.
+- O gráfico segue o estado do painel, não só o do card: a linha fica cinza no sem sinal e na sessão encerrada com os valores descartados (conexão caída); ver "Gráfico de linha do painel".
 - A lista de parâmetros N/A vem da sessão (decidida ao ligar o motor e válida a sessão toda); o card não decide sozinho.
 - Valores congelados (sessão encerrada) usam o mesmo estilo dos valores ao vivo; a diferença é dada pelo aviso do painel.
 - Maximização: prevista pelo princípio "Foco por demanda", mas fora do escopo do loop-002; virou item do backlog.
-- Implementado em: UC-002 (`parameter-indicator.tsx`); estado N/A no UC-006.
+- Implementado em: UC-002 (`parameter-indicator.tsx`); estado N/A no UC-006; gráfico e caixa N/A no loop-007.
+
+### Gráfico de linha do painel
+- Usado em: indicador de parâmetro do painel de tempo real (UC-002, loop-007), abaixo do valor. Referência visual: protótipo "Painel de tempo real (gráficos de linha, 2 min)", aprovado antes do loop-007.
+- Mostra os últimos 2 minutos do parâmetro, com janela fixa e sem seletor. A leitura mais recente fica na borda direita; o eixo de tempo tem sempre 2 minutos e, com menos que isso, a linha ocupa só a parte da direita (CA-002-7 e CA-002-14).
+- Estrutura (bloco de 84px, `--altura-grafico-painel`, com 4px entre as partes):
+  - desenho em SVG com `viewBox` 1000×100, `preserveAspectRatio` none, 64px de altura e a largura do card;
+  - linha de meio horizontal de 1px em `color-profile-grid`;
+  - área clara sob a linha, na cor de área do grupo;
+  - linha de 1,75px na cor do grupo, com junções arredondadas;
+  - leitura isolada (sem vizinhas ligadas, como a primeira) como ponto: traço de comprimento zero de 4px com ponta redonda (decisão T10);
+  - todos os traços com `vector-effect: non-scaling-stroke`;
+  - recorte com `clip-path: inset(-3px -3px -3px 0)`: 3px de folga à direita, em cima e embaixo, para o ponto e a ponta da linha aparecerem inteiros na borda, e corte rente à esquerda, para esconder o trecho que vem da leitura anterior à janela (rodada curta do loop-007);
+  - abaixo do desenho, os limites da escala: o inferior à esquerda e o superior à direita, em IBM Plex Mono 11px, `color-text-secondary`, `tabular-nums`, na mesma formatação do valor do parâmetro (o rumo usa "000" e "360"; a rolagem, "15,0 E" embaixo e "15,0 D" em cima, com a direita para cima, decisão T4).
+- Escalas (CA-002-8):
+  - **fixa:** rumo de 000 a 360°; manete, mistura e flapes de 0 a 100 %. Fora da escala (ex.: reverso da manete), a linha para no limite e o número mostra o valor real (CA-002-10). Na passagem do rumo de 359° para 000° a linha é interrompida (CA-002-11);
+  - **zero no centro:** velocidade vertical (mínimo ±300 fpm), arfagem (mínimo ±5°) e rolagem (mínimo ±15°); simétrica, cresce com as leituras;
+  - **automática:** segue as leituras da janela com 15 % de folga e amplitude mínima: altitude 200 ft, IAS 20 kt, latitude e longitude 0,01°, RPM 500 rpm. IAS e RPM nunca descem abaixo de 0 (a faixa sobe mantendo a amplitude). Com valor constante, a linha fica no meio (CA-002-9), exceto IAS ou RPM em 0, que ficam no fundo.
+- Interrupções: 2 s ou mais entre duas leituras interrompem a linha e a área (CA-002-12); a falha continua visível até sair da janela.
+- Cores por grupo (CA-002-13; tokens em "Cores do gráfico de linha do painel"): azul `color-chart-1` no grupo voo, laranja `color-chart-2` em atitude e posição, verde `color-chart-3` em motor e configuração. O rótulo do card continua identificando o parâmetro; a cor não é o único meio.
+- Estados:
+  - **ao vivo:** linha na cor do grupo, andando a cada leitura;
+  - **sem sinal:** linha e área cinza (`color-chart-no-signal` e `color-chart-no-signal-fill`); o eixo continua andando com o relógio, sem pontos novos, e a falha cresce à direita (CA-002-5);
+  - **sessão encerrada:** linha congelada na cor do grupo, incluindo as leituras da espera de 15 s; com os valores descartados (conexão caída), cinza (CA-002-4);
+  - **antes da 1ª leitura:** desenho vazio; os limites da escala automática ficam escondidos (decisão T8), e os da fixa e os de zero no centro (mínimos) aparecem (decisão do HITL-2 do loop-007).
+- Uma sessão nova zera os gráficos; a reconexão na mesma sessão mantém a linha, com a falha; trocar de tela e voltar mantém os 2 minutos; reabrir o app começa os gráficos vazios (CA-002-15 a 17).
+- O bloco inteiro (desenho e limites) tem `aria-hidden`; a faixa da janela vai no rótulo acessível do card (ver [usability.md](usability.md)).
+- Implementado em: UC-002, loop-007 (`grafico-do-painel.tsx`, `grafico-do-painel.css`, `desenho-do-grafico.ts`, `config-grafico-painel.ts`, `escala-do-grafico.ts`).
 
 ### Painel de tempo real
 - Usado em: área principal da janela do app (UC-002). Não há segunda janela.
 - Aparece sozinho quando há sessão (ativa ou encerrada); sem sessão, a área principal mostra a mensagem de orientação.
-- Estrutura: aviso do painel (quando houver) acima da grade de indicadores de parâmetro.
+- Estrutura: uma linha de cabeçalho acima da grade de indicadores de parâmetro, com o aviso do painel (quando houver) à esquerda e, desde o loop-007, a legenda dos gráficos à direita: "Gráficos: últimos 2 minutos. A ponta direita da linha é o valor atual." (IBM Plex Sans 12px/400, `color-text-secondary`). A linha quebra quando falta largura (8px entre linhas, 16px entre os itens), e a legenda continua alinhada à direita. A legenda aparece em todos os estados com a grade; some quando a grade é substituída pelo aviso de erro ao carregar os parâmetros.
 - Estados (precedência: sem sessão, depois encerrada, depois sem sinal, depois ativa):
   - **Sem sessão:** painel não é exibido; a área principal mostra "Inicie o simulador e ligue o motor para começar".
-  - **Ativa:** grade com os valores ao vivo, atualizados a cada ciclo de 1 s.
-  - **Encerrada:** últimos valores congelados e aviso "Sessão encerrada". Ocorre no uso real desde o loop-004 (UC-003): quando a sessão encerra (aeronave no solo e motor parado por 15 s seguidos) e também quando a gravação do encerramento falha (a tela mostra "Encerrada" e a falha aparece só na notificação de erro). O painel fica encerrado até o motor ser religado (nova sessão, com "Coleta iniciada") ou o app ser fechado.
-  - **Sem sinal:** conexão com o simulador perdida durante a sessão ou 2 s sem dados novos; os valores viram "—" (exceto os cards N/A, que continuam "N/A") e aparece o aviso "Sem sinal do simulador". Os valores voltam quando os dados retornam.
+  - **Ativa:** grade com os valores e os gráficos ao vivo, atualizados a cada ciclo de 1 s.
+  - **Encerrada:** últimos valores e gráficos congelados e aviso "Sessão encerrada". Ocorre no uso real desde o loop-004 (UC-003): quando a sessão encerra (aeronave no solo e motor parado por 15 s seguidos) e também quando a gravação do encerramento falha (a tela mostra "Encerrada" e a falha aparece só na notificação de erro). O painel fica encerrado até o motor ser religado (nova sessão, com "Coleta iniciada") ou o app ser fechado.
+  - **Sem sinal:** conexão com o simulador perdida durante a sessão ou 2 s sem dados novos; os valores viram "—" (exceto os cards N/A, que continuam "N/A"), as linhas dos gráficos ficam cinza e aparece o aviso "Sem sinal do simulador". Os valores voltam quando os dados retornam; a falha na linha continua visível até sair da janela.
   - **Erro ao carregar parâmetros:** se a consulta dos parâmetros ativos falhar, a grade é substituída pelo aviso "Não foi possível carregar os parâmetros."
 - Enquanto a consulta inicial não responde, a área principal mostra "Aguardando..." em `color-text-secondary`.
 - Reabertura do app (loop-004, UC-003): a sessão encerrada não é mostrada de novo; a área principal mostra a orientação "Inicie o simulador e ligue o motor para começar". Uma sessão ativa gravada passa por uma verificação de até 15 s; durante ela a tela mostra a orientação (e a barra "Aguardando motor", se conectado), mesmo com o motor ligado. Se o motor estiver ligado, a sessão é confirmada e aparece "Coleta iniciada" com o painel; se não, é encerrada em silêncio e a orientação continua.
-- Implementado em: UC-002 (`realtime-panel.tsx`, `realtime-panel.css`); 12 parâmetros e estado N/A no UC-006; estado "Encerrada" no uso real e reabertura no UC-003.
+- Implementado em: UC-002 (`realtime-panel.tsx`, `realtime-panel.css`); 12 parâmetros e estado N/A no UC-006; estado "Encerrada" no uso real e reabertura no UC-003; legenda e gráficos no loop-007.
 
 ### Aviso do painel
 - Usado em: painel de tempo real (UC-002), para "Sessão encerrada", "Sem sinal do simulador" e "Não foi possível carregar os parâmetros.".
-- Posição: acima da grade, com 16px de espaço abaixo.
+- Posição: à esquerda na linha de cabeçalho acima da grade, com 16px de espaço abaixo; a legenda dos gráficos fica à direita, na mesma linha (loop-007).
 - Estilo: tipografia Corpo, `color-text-secondary`, sem fundo nem ícone. Erro, sem sinal e aviso informativo usam o mesmo estilo neutro (ver "Em aberto").
 - Implementado em: UC-002.
 
@@ -266,8 +313,9 @@ Todos os componentes mostram o mesmo **instante selecionado** da linha do tempo,
   - Linha 1 (voo): Altitude MSL, Velocidade IAS, Velocidade vertical, Rumo magnético.
   - Linha 2 (atitude e posição): Arfagem, Rolagem, Latitude, Longitude.
   - Linha 3 (motor e configuração): Manete, Mistura, RPM, Flapes.
-- Os grupos não têm título nem separador visual; a divisão vem só da linha da grade (ver "Em aberto e débitos de UX").
-- Cada indicador ocupa um card.
+- O nome do 3º grupo é "motor e configuração" (decisão 14 da 1.1 do loop-007; o backlog usava "motor e comandos").
+- Os grupos não têm título nem separador visual; a divisão vem da linha da grade e, desde o loop-007, da cor da linha dos gráficos (ver "Em aberto e débitos de UX").
+- Cada indicador ocupa um card, com o gráfico de linha dos últimos 2 minutos (loop-007). Com os gráficos, cada card tem cerca de 181px de altura (cerca de 80px a mais que antes; decisão 16 da 1.1 do loop-007: aceito, com débito no item 10).
 - Maximização de card (card ocupando a área de conteúdo, com botão "Reduzir" para voltar à grade): fora do escopo do loop-002; item do backlog.
 
 ### Tela: lista de voos (UC-004)
@@ -304,6 +352,7 @@ Todos os componentes mostram o mesmo **instante selecionado** da linha do tempo,
 - A janela tem tamanho mínimo de 640 x 480 px (loop-005), para a barra superior com a navegação não cortar o indicador de estado (antes, abaixo de cerca de 430 px, ele ficava cortado). Conferido no teste manual no Windows do loop-005 (v0.5.0).
 - A grade do painel de tempo real tem 4 colunas acima de 900px, 2 colunas entre 600px e 900px e 1 coluna abaixo de 600px, sempre na ordem dos grupos (decisão do HITL-1 do loop-003).
 - Com 12 cards, larguras de 900px ou menos podem exigir rolagem vertical para ver todos os parâmetros (consequência aceita da grade 4/2/1; ver "Em aberto e débitos de UX").
+- Com os gráficos (loop-007), a altura também passa a exigir rolagem: a 4 colunas, as 3 linhas de cards de cerca de 181px não cabem em telas de 720 a 768px de altura, e a 640×480 a rolagem quase triplica. Aceito na decisão 16 da 1.1 do loop-007, com débito no item 10 do backlog (ver "Em aberto").
 - A 2 colunas, cada grupo ocupa duas linhas da grade e a divisão entre grupos deixa de ser visível.
 - A lista de voos mantém layout de coluna única em qualquer largura.
 - Debriefing (loop-006): os blocos seguem em coluna única, mas a linha da trajetória com o painel de instrumentos quebra (`flex-wrap`): quando não cabem os dois lado a lado (cerca de 1.056px de conteúdo, as duas bases mais o espaço), o painel desce para baixo da trajetória. Dentro do painel, a coluna lateral (manete, mistura e flapes) desce para baixo da grade de mostradores quando falta largura; a grade fica sempre com 3 colunas, e os mostradores encolhem. O cabeçalho do voo, os controles do reprodutor e os cabeçalhos das seções também quebram em linhas. A 640×480 isso exige rolagem (ver "Em aberto").
@@ -347,3 +396,11 @@ Pontos da revisão de usabilidade do loop-006 (UC-005). Decisão do HITL-3: déb
 - **`color-text-secondary` dentro do painel escuro:** o centro dos ponteiros e a dobradiça do flape usam `color-text-secondary` (#525252) em vez de um token `color-panel-*`; sobre a face #161616 o contraste é baixo (gráfico, não texto).
 - **"—" em todos os instrumentos em 0:00:00:** a primeira leitura pode chegar até 1 s depois do início, então o voo pode abrir com todos os instrumentos em "—".
 - **Contraste gráfico da borda do grupo de velocidades:** a borda `color-border` fica abaixo de 3:1 (o tracejado da trajetória e a alavanca de mistura foram corrigidos na rodada curta). Depende da pergunta "o contraste gráfico de 3:1 vira diretriz?".
+
+Pontos da revisão de usabilidade do loop-007 (UC-002, gráficos de linha no painel). Decisão do HITL-3: débito de UX (os não bloqueantes e o da rodada curta). Os débitos de acessibilidade estão em [usability.md](usability.md):
+
+- **Altura dos cards e rolagem:** os cards passaram a ter cerca de 181px; a 4 colunas, a grade exige rolagem em telas de 720 a 768px de altura, e a 640×480 a rolagem quase triplica. Aceito na decisão 16 da 1.1, com débito no item 10 do backlog (UX do painel), junto com "Reduzir", títulos dos grupos e a rolagem abaixo de 900px.
+- **Limites lidos como eixo de tempo:** os limites da escala Y ficam numa linha embaixo do gráfico, à esquerda e à direita, e podem ser lidos como o início e o fim do eixo de tempo.
+- **Limites em 11px:** os limites usam IBM Plex Mono 11px, fora da escala tipográfica (soma-se aos tamanhos fora da escala do loop-006).
+- **Margem de contraste curta:** laranja, verde e cinza ficam em cerca de 3,1:1 contra a área (3,09, 3,07 e 3,07:1, depois da rodada curta); passam de 3:1, mas com pouca margem. Falta conferir a cor efetiva no Electron.
+- **Ponto cortado à esquerda:** a leitura isolada que está saindo da janela, em x=0, aparece cortada ao meio pelo recorte rente à esquerda. A da borda direita foi corrigida na rodada curta.

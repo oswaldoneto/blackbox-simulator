@@ -45,7 +45,7 @@ export function App(): React.ReactElement {
   const { sessaoAtiva, loading } = useActiveSession()
   const conexao = useConnectionState()
   const { parametros, erro: erroParametros } = useActiveParameters()
-  const { valores, semDados } = useLiveReadings(sessaoAtiva, conexao)
+  const { valores, semDados, janela, valoresDescartados } = useLiveReadings(sessaoAtiva, conexao)
   const { notification, showNotification, clearNotification } = useNotification()
 
   // A carga inicial não move o foco: só as trocas de tela o levam ao título.
@@ -140,6 +140,8 @@ export function App(): React.ReactElement {
             estado={estadoPainel}
             erroParametros={erroParametros}
             parametrosNaoAplicaveis={sessaoAtiva?.parametrosNaoAplicaveis ?? []}
+            janela={janela}
+            valoresDescartados={valoresDescartados}
           />
         )}
         {tela.nome === 'voos' && (

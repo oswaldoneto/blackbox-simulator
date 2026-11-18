@@ -1,0 +1,83 @@
+/* Gráfico de linha do painel de tempo real (UC-002). Cores por grupo (CA-002-13). */
+.grafico-do-painel {
+  --grafico-linha: var(--color-chart-1);
+  --grafico-area: var(--color-chart-1-fill);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  height: var(--altura-grafico-painel);
+}
+
+.grafico-do-painel--voo {
+  --grafico-linha: var(--color-chart-1);
+  --grafico-area: var(--color-chart-1-fill);
+}
+
+.grafico-do-painel--atitude-posicao {
+  --grafico-linha: var(--color-chart-2);
+  --grafico-area: var(--color-chart-2-fill);
+}
+
+.grafico-do-painel--motor-configuracao {
+  --grafico-linha: var(--color-chart-3);
+  --grafico-area: var(--color-chart-3-fill);
+}
+
+/* Sem sinal vence a cor do grupo. */
+.grafico-do-painel--sem-sinal {
+  --grafico-linha: var(--color-chart-no-signal);
+  --grafico-area: var(--color-chart-no-signal-fill);
+}
+
+.grafico-do-painel__desenho {
+  display: block;
+  width: 100%;
+  height: 64px;
+  /* A leitura mais recente fica em x=1000, na borda direita: o recorte deixa 3 px de folga
+     em cima, embaixo e à direita para o ponto isolado (4 px, ponta redonda) e a ponta da
+     linha aparecerem inteiros. À esquerda o corte é rente, para esconder o trecho que vem
+     do ponto anterior à janela. */
+  overflow: visible;
+  clip-path: inset(-3px -3px -3px 0);
+}
+
+.grafico-do-painel__meio {
+  stroke: var(--color-profile-grid);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.grafico-do-painel__area {
+  fill: var(--grafico-area);
+  stroke: none;
+}
+
+.grafico-do-painel__linha {
+  fill: none;
+  stroke: var(--grafico-linha);
+  stroke-width: 1.75;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Leitura isolada: traço de comprimento zero com ponta redonda, 4 px (T10). */
+.grafico-do-painel__ponto {
+  fill: none;
+  stroke: var(--grafico-linha);
+  stroke-width: 4;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.grafico-do-painel__limites {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  height: 16px;
+  line-height: 16px;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

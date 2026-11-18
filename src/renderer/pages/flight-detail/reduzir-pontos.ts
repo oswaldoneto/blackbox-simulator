@@ -1,34 +1,4 @@
-import { SEM_DADOS_LIMITE_MS } from '../../components/limites-de-tempo'
-
-/** Ponto de uma série no tempo: instante em ms UTC e valor gravado. */
-export interface PontoNoTempo {
-  t: number
-  v: number
-}
-
-/**
- * Corta uma lista de pontos em ordem de tempo em trechos contínuos (UC-005): um intervalo
- * maior que `limiteMs` (2000 ms) entre duas leituras abre um trecho novo, para o desenho
- * mostrar a perda de dados como linha interrompida. Só para o desenho.
- */
-export function segmentarPorFalhas<T extends { t: number }>(
-  pontos: readonly T[],
-  limiteMs: number = SEM_DADOS_LIMITE_MS
-): T[][] {
-  const trechos: T[][] = []
-  let atual: T[] = []
-  for (const ponto of pontos) {
-    if (atual.length > 0 && ponto.t - atual[atual.length - 1].t > limiteMs) {
-      trechos.push(atual)
-      atual = []
-    }
-    atual.push(ponto)
-  }
-  if (atual.length > 0) {
-    trechos.push(atual)
-  }
-  return trechos
-}
+import type { PontoNoTempo } from '../../components/segmentar-serie'
 
 /** Junta instantes e valores de uma série em pontos. */
 export function pontosDaSerie(instantes: readonly number[], valores: readonly number[]): PontoNoTempo[] {

@@ -1,7 +1,4 @@
-import {
-  BANK_POSITIVO_PARA_ESQUERDA,
-  PITCH_POSITIVO_NARIZ_PARA_BAIXO,
-} from '../../components/format-parameter-value'
+import { arfagemNarizParaCima, rolagemParaDireita } from '../../components/sinal-de-exibicao'
 
 /**
  * Escala linear de um mostrador: o valor `min` fica em `anguloMin` e o `max` em
@@ -72,16 +69,6 @@ export function angulosDoAltimetro(altitudeFt: number): { centenas: number; milh
 export function rotacaoDaRosa(rumo: number): number {
   const r = modulo(rumo, 360)
   return r === 0 ? 0 : -r
-}
-
-/** Arfagem com o sinal da exibição: positiva com o nariz para cima. */
-export function arfagemNarizParaCima(arfagemBruta: number): number {
-  return PITCH_POSITIVO_NARIZ_PARA_BAIXO ? -arfagemBruta : arfagemBruta
-}
-
-/** Rolagem com sinal positivo para a direita (asa direita baixa). */
-export function rolagemParaDireita(rolagemBruta: number): number {
-  return BANK_POSITIVO_PARA_ESQUERDA ? -rolagemBruta : rolagemBruta
 }
 
 /**

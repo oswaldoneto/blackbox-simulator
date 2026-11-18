@@ -13,6 +13,7 @@ vi.mock('../ipc/parameter-ipc', () => ({
 
 import { useLiveReadings } from './use-live-readings'
 import { SEM_DADOS_LIMITE_MS } from '../components/limites-de-tempo'
+import { JANELA_VAZIA } from '../components/janela-de-leituras'
 
 let listeners: ((p: PacoteDeLeituras) => void)[] = []
 
@@ -89,7 +90,12 @@ describe('useLiveReadings', () => {
     avancar(5000)
 
     expect(mockOnParameterReadings).not.toHaveBeenCalled()
-    expect(result.current).toEqual({ valores: {}, semDados: false })
+    expect(result.current).toEqual({
+      valores: {},
+      semDados: false,
+      janela: JANELA_VAZIA,
+      valoresDescartados: false,
+    })
   })
 
   it('deve atualizar os valores a cada pacote da sessão ativa', () => {
@@ -222,6 +228,181 @@ describe('useLiveReadings', () => {
     rerender({ sessao: encerrada, conexao: 'desconectado' })
 
     expect(result.current.valores.altitude_msl).toBe(4500)
+  })
+
+  // --- loop-007: janela dos gráficos de linha (UC-002) ---
+
+  describe('janela dos gráficos', () => {
+    const BASE = Date.parse('2024-01-01T00:00:00.000Z')
+
+    function pacoteEm(sessaoId: string, segundo: number, altitude: number): PacoteDeLeituras {
+      return {
+        sessaoId,
+        timestamp: new Date(BASE + segundo * 1000).toISOString(),
+        leituras: [{ parametroId: 'altitude_msl', valor: altitude }],
+      }
+    }
+
+    function altitudes(janela: { series: Readonly<Record<string, readonly { v: number }[]>> }): number[] {
+      return (janela.series.altitude_msl ?? []).map((p) => p.v)
+    }
+
+    it('deve começar vazia ao abrir com a sessão ativa e encher a partir do primeiro pacote (CA-002-17)', () => {
+      const { result } = renderLeituras({ sessao: makeSessao(), conexao: 'conectado' })
+
+      expect(result.current.janela).toEqual(JANELA_VAZIA)
+
+      emitir(pacoteEm('sess-1', 1, 4500))
+      emitir(pacoteEm('sess-1', 2, 4510))
+
+      expect(altitudes(result.current.janela)).toEqual([4500, 4510])
+      expect(result.current.janela.ultimoInstante).toBe(BASE + 2000)
+    })
+
+    it('deve acrescentar um ponto a cada pacote da sessão ativa (CA-002-2)', () => {
+      const { result } = renderLeituras({ sessao: makeSessao(), conexao: 'conectado' })
+
+      for (let i = 1; i <= 5; i++) {
+        emitir(pacoteEm('sess-1', i, 4500 + i))
+        avancar(1000)
+      }
+
+      expect(altitudes(result.current.janela)).toEqual([4501, 4502, 4503, 4504, 4505])
+    })
+
+    it('não deve pôr na janela pacotes de outra sessão', () => {
+      const { result } = renderLeituras({ sessao: makeSessao(), conexao: 'conectado' })
+
+      emitir(pacoteEm('sess-1', 1, 4500))
+      emitir(pacoteEm('outra-sessao', 2, 9999))
+
+      expect(altitudes(result.current.janela)).toEqual([4500])
+    })
+
+    it('deve zerar a janela quando começa uma nova sessão (CA-002-15)', () => {
+      const { result, rerender } = renderLeituras({ sessao: makeSessao(), conexao: 'conectado' })
+      emitir(pacoteEm('sess-1', 1, 4500))
+      emitir(pacoteEm('sess-1', 2, 4510))
+
+      rerender({ sessao: makeSessao({ id: 'sess-2' }), conexao: 'conectado' })
+      expect(result.current.janela).toEqual(JANELA_VAZIA)
+
+      emitir(pacoteEm('sess-2', 3, 1200))
+      expect(altitudes(result.current.janela)).toEqual([1200])
+    })
+
+    it('deve zerar a janela quando a nova sessão começa depois de uma encerrada', () => {
+      const sessao = makeSessao()
+      const { result, rerender } = renderLeituras({ sessao, conexao: 'conectado' })
+      emitir(pacoteEm('sess-1', 1, 4500))
+      rerender({ sessao: { ...sessao, status: 'encerrada' }, conexao: 'conectado' })
+
+      rerender({ sessao: makeSessao({ id: 'sess-2' }), conexao: 'conectado' })
+
+      expect(result.current.janela).toEqual(JANELA_VAZIA)
+      expect(result.current.valoresDescartados).toBe(false)
+    })
+
+    it('deve zerar os valores e manter a janela quando a conexão cai (CA-002-4)', () => {
+      const sessao = makeSessao()
+      const { result, rerender } = renderLeituras({ sessao, conexao: 'conectado' })
+      emitir(pacoteEm('sess-1', 1, 4500))
+      emitir(pacoteEm('sess-1', 2, 4510))
+      const janelaAntes = result.current.janela
+
+      rerender({ sessao, conexao: 'desconectado' })
+
+      expect(result.current.valores).toEqual({})
+      expect(result.current.valoresDescartados).toBe(true)
+      expect(result.current.janela).toBe(janelaAntes)
+    })
+
+    it('deve continuar a mesma janela na reconexão, com a falha entre as leituras (CA-002-15)', () => {
+      const sessao = makeSessao()
+      const { result, rerender } = renderLeituras({ sessao, conexao: 'conectado' })
+      emitir(pacoteEm('sess-1', 1, 4500))
+      emitir(pacoteEm('sess-1', 2, 4510))
+      rerender({ sessao, conexao: 'desconectado' })
+
+      rerender({ sessao, conexao: 'conectado' })
+      expect(result.current.valoresDescartados).toBe(true)
+
+      emitir(pacoteEm('sess-1', 12, 4600))
+
+      expect(altitudes(result.current.janela)).toEqual([4500, 4510, 4600])
+      const instantes = result.current.janela.series.altitude_msl.map((p) => p.t - BASE)
+      expect(instantes).toEqual([1000, 2000, 12000])
+      expect(result.current.valoresDescartados).toBe(false)
+      expect(result.current.valores).toEqual({ altitude_msl: 4600 })
+    })
+
+    it('deve manter a janela quando fica sem dados por 2 s com a conexão aberta', () => {
+      const { result } = renderLeituras({ sessao: makeSessao(), conexao: 'conectado' })
+      emitir(pacoteEm('sess-1', 1, 4500))
+
+      avancar(SEM_DADOS_LIMITE_MS)
+
+      expect(result.current.semDados).toBe(true)
+      expect(altitudes(result.current.janela)).toEqual([4500])
+      expect(result.current.valoresDescartados).toBe(false)
+    })
+
+    it('deve congelar a janela com os pacotes da espera de 15 s quando a sessão encerra (CA-002-4, P3)', () => {
+      const sessao = makeSessao()
+      const { result, rerender } = renderLeituras({ sessao, conexao: 'conectado' })
+      emitir(pacoteEm('sess-1', 1, 4500))
+      // Motor desligado: os pacotes da espera de 15 s chegam antes de session:ended.
+      for (let s = 2; s <= 16; s++) {
+        emitir(pacoteEm('sess-1', s, 4500 - s))
+      }
+
+      rerender({ sessao: { ...sessao, status: 'encerrada' }, conexao: 'conectado' })
+      const congelada = result.current.janela
+
+      emitir(pacoteEm('sess-1', 17, 9999))
+      avancar(5000)
+
+      expect(result.current.janela).toBe(congelada)
+      expect(altitudes(congelada)).toHaveLength(16)
+      expect(congelada.ultimoInstante).toBe(BASE + 16000)
+      expect(result.current.valoresDescartados).toBe(false)
+    })
+
+    it('deve marcar os valores descartados quando a sessão encerra com a conexão caída', () => {
+      const sessao = makeSessao()
+      const { result, rerender } = renderLeituras({ sessao, conexao: 'conectado' })
+      emitir(pacoteEm('sess-1', 1, 4500))
+      rerender({ sessao, conexao: 'desconectado' })
+
+      rerender({ sessao: { ...sessao, status: 'encerrada' }, conexao: 'desconectado' })
+
+      expect(result.current.valores).toEqual({})
+      expect(result.current.valoresDescartados).toBe(true)
+      expect(altitudes(result.current.janela)).toEqual([4500])
+    })
+
+    it('não deve marcar valores descartados quando a conexão cai com a sessão já encerrada', () => {
+      const sessao = makeSessao()
+      const encerrada: Sessao = { ...sessao, status: 'encerrada' }
+      const { result, rerender } = renderLeituras({ sessao, conexao: 'conectado' })
+      emitir(pacoteEm('sess-1', 1, 4500))
+      rerender({ sessao: encerrada, conexao: 'conectado' })
+
+      rerender({ sessao: encerrada, conexao: 'desconectado' })
+
+      expect(result.current.valoresDescartados).toBe(false)
+      expect(altitudes(result.current.janela)).toEqual([4500])
+    })
+
+    it('deve começar vazia ao remontar o hook na mesma sessão (reabertura do app, CA-002-17)', () => {
+      const primeira = renderLeituras({ sessao: makeSessao(), conexao: 'conectado' })
+      emitir(pacoteEm('sess-1', 1, 4500))
+      primeira.unmount()
+
+      const segunda = renderLeituras({ sessao: makeSessao(), conexao: 'conectado' })
+
+      expect(segunda.result.current.janela).toEqual(JANELA_VAZIA)
+    })
   })
 
   it('deve remover o listener e o timer ao desmontar', () => {

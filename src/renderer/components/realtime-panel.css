@@ -1,7 +1,25 @@
-.realtime-panel__notice {
+/* Aviso do painel à esquerda e legenda dos gráficos à direita, 16px acima da grade. */
+.realtime-panel__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
   margin: 0 0 16px;
+}
+
+.realtime-panel__notice {
+  margin: 0;
   font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
   font-size: 14px;
+  font-weight: 400;
+  color: var(--color-text-secondary);
+}
+
+.realtime-panel__legend {
+  margin: 0 0 0 auto;
+  font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
   font-weight: 400;
   color: var(--color-text-secondary);
 }
@@ -25,6 +43,7 @@
 }
 
 .parameter-indicator {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -58,5 +77,22 @@
 }
 
 .parameter-indicator__value--no-signal {
+  color: var(--color-text-secondary);
+}
+
+/* Card N/A: caixa tracejada no lugar do gráfico, com a mesma altura (CA-002-18). */
+.parameter-indicator__sem-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: var(--altura-grafico-painel);
+  padding: 0 12px;
+  border: 1px dashed var(--color-border);
+  border-radius: 4px;
+  text-align: center;
+  font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
   color: var(--color-text-secondary);
 }

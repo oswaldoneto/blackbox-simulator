@@ -10,9 +10,23 @@
   --color-warning: #F1C21B;
   --color-error: #DA1E28;
   --color-chart-1: #0F62FE;
-  --color-chart-2: #FF832B;
+  /* Escurecido de #FF832B para #EB6200 no loop-007, para a linha chegar a 3:1 (decisão 15). */
+  --color-chart-2: #EB6200;
   --color-chart-3: #24A148;
   --color-chart-4: #8A3FFC;
+
+  /* Painel de tempo real (UC-002): linha cinza do sem sinal e áreas claras sob as linhas. */
+  --color-chart-no-signal: #8D8D8D;
+  --color-chart-1-fill: #E5EDFF;
+  /* Clareado de #FFF0E5 (3,00:1 com a linha) para #FFF4ED (3,09:1). */
+  --color-chart-2-fill: #FFF4ED;
+  /* Clareado de #E3F5E8 (2,95:1 com a linha) para #ECF8EF (3,07:1). */
+  --color-chart-3-fill: #ECF8EF;
+  /* Clareado de #F2F4F7 (3,01:1 com a linha) para #F5F6F8 (3,07:1). */
+  --color-chart-no-signal-fill: #F5F6F8;
+
+  /* Altura do gráfico do card e da caixa N/A que ocupa o lugar dele (CA-002-18). */
+  --altura-grafico-painel: 84px;
 
   /* Debriefing (UC-005): painel de instrumentos escuro, exceção ao tema claro. */
   --color-panel-bg: #2F3438;

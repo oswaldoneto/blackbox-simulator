@@ -3,7 +3,7 @@
 > Propósito: Convenções que os agentes de código devem seguir.
 > Atualizar quando: uma convenção for criada ou mudar, inclusive por uma lição aprendida.
 > Relacionados: [architecture.md](architecture.md)
-> Última atualização: 2026-11-17 · loop-006
+> Última atualização: 2026-11-17 · loop-007
 
 ## Linguagem e estilo
 
@@ -19,6 +19,14 @@
 - Quando um elemento precisa de `:hover` ou `:focus-visible` (ex.: `flight-card.css`, `status-bar.css`, `flight-detail-page.css`, loop-005), a regra base da classe (cor, borda, fundo que a pseudo-classe altera) também vai para o CSS em arquivo. Estilo inline venceria a pseudo-classe.
 - Texto visualmente oculto, lido só pelo leitor de tela (loop-006, HITL-1): usar a classe utilitária `.visualmente-oculto` de `styles/global.css` (ex.: o rótulo do controle deslizante em `flight-player.tsx` e a duração por extenso em `flight-detail-page.tsx`). Não repetir o estilo inline. Débito: o h1 "Painel de tempo real" do painel (loop-005) ainda usa estilo inline em `App.tsx` (ver "Em aberto").
 - SVG acessível (loop-006): o mostrador ou gráfico fica num contêiner com `role="group"` e `aria-label` que diz o valor (ex.: `instrument-slot.tsx`), e o desenho leva `aria-hidden` (no `<svg>` ou no contêiner dele, como `instrument__drawing`). O mapa da trajetória e o perfil vertical, que são uma imagem única, usam `role="img"` com rótulo no próprio SVG. Os textos acessíveis não usam `aria-live`. IDs internos do SVG (`clipPath`) vêm de `useId`, para não colidir entre instâncias. Traços que precisam manter a espessura e o tracejado em px de tela num SVG com `viewBox` que escala levam `vector-effect: non-scaling-stroke` (no CSS ou pela prop `vectorEffect`), como a trajetória e o perfil vertical.
+- Gráfico SVG do painel (loop-007, `grafico-do-painel.tsx` e `.css`):
+  - viewBox fixo (1000×100, `GRAFICO_LARGURA` e `GRAFICO_ALTURA` de `desenho-do-grafico.ts`) com `preserveAspectRatio="none"`, para o desenho ocupar a largura do card; o cálculo das coordenadas fica numa função pura (`desenharGrafico`), e o componente só desenha;
+  - todo traço leva `vector-effect: non-scaling-stroke`, no CSS;
+  - os limites da escala ficam em HTML abaixo do SVG, não em `<text>`, e o contêiner do gráfico inteiro (desenho e limites) leva `aria-hidden`;
+  - a faixa da janela ("últimos 2 minutos: de <mín> a <máx> <unidade>") vai no `aria-label` do grupo do card (`role="group"`, montado por `textoDoIndicador`), sem `aria-live`;
+  - a cor vem de uma classe por grupo (`grafico-do-painel--voo`, `--atitude-posicao`, `--motor-configuracao`) que define variáveis CSS locais (`--grafico-linha`, `--grafico-area`) a partir dos tokens `--color-chart-*`; o modificador `--sem-sinal` vem depois e vence a cor do grupo;
+  - o recorte é um `clip-path: inset(-3px -3px -3px 0)` em CSS, com `overflow: visible`: folga de 3 px em cima, embaixo e à direita para o ponto e a ponta da linha em x=1000 aparecerem inteiros, e corte rente à esquerda;
+  - a altura do gráfico vem da variável `--altura-grafico-painel` (84 px, em `styles/global.css`), usada também pela caixa do card N/A em `realtime-panel.css`. Não repetir a medida em px.
 - Fontes IBM Plex Sans e IBM Plex Mono carregadas localmente pelos pacotes `@fontsource/ibm-plex-sans` e `@fontsource/ibm-plex-mono`, importados no renderer. Não usar Google Fonts nem outra fonte remota (design.md pede fonte local).
 
 ## Estrutura de pastas
@@ -31,7 +39,7 @@ src/
     ipc/          # Handlers dos canais IPC expostos ao renderer
     index.ts      # Entry point do main
   renderer/       # Processo de renderização (React)
-    components/   # Componentes React reutilizáveis, utilitários de exibição e constantes de exibição compartilhadas (sem React)
+    components/   # Componentes React reutilizáveis, utilitários de exibição, constantes de exibição compartilhadas (sem React) e o hook usado só por um desses componentes
     pages/        # Telas da aplicação (uma pasta por tela, com os componentes, funções puras e hook usados só por ela, CSS e testes ao lado)
     hooks/        # Custom hooks compartilhados ou que falam com o main
     ipc/          # Chamadas IPC para o main (wrappers tipados)
@@ -56,6 +64,9 @@ src/
 - Formatação de data e hora (loop-005): `format-flight-time.ts` usa `Intl.DateTimeFormat('pt-BR')` no fuso local da máquina (data dd/mm/aaaa; hora HH:mm com `hourCycle: 'h23'`) e recebe um `timeZone` opcional, usado só pelos testes para fixar o fuso. A duração é calculada pelos instantes, não pelo relógio local. Desde o loop-006, o cálculo de h:mm:ss e por extenso fica em `formatarSegundosHms` e `formatarSegundosPorExtenso`, reaproveitados pelos formatadores de duração e pelo tempo da reprodução (`formatarHoraComSegundos`, `textoDoInstante` para o `aria-valuetext`).
 - Prop `timeZone` em componentes (loop-006): páginas e componentes que formatam data ou hora (`flight-detail-page.tsx`, `flight-player.tsx`) recebem um `timeZone?` opcional e o repassam ao formatador. A prop existe só para os testes; o `App` nunca a passa, e o app usa o fuso local.
 - Reprodução no tempo (loop-006): a lógica que avança com o tempo é uma função pura, sem timer e sem `Date.now()` (`avancarReproducao`, `alternarReproducao` em `reproducao.ts`), e o timer fica num hook à parte (`use-reproducao.ts`, `setInterval` só enquanto toca, limpo ao pausar e ao desmontar). As funções puras são testadas com valores explícitos, e o hook com fake timers.
+- Desde o loop-007, `components/` guarda também o que subiu do debriefing para o painel de tempo real: `caminho-svg.ts` (`caminhoDaLinha`), `segmentar-serie.ts` (`segmentarPorFalhas`, `PontoNoTempo`) e `sinal-de-exibicao.ts` (`arfagemNarizParaCima`, `rolagemParaDireita`), usados pelas duas telas. As funções puras dos gráficos do painel ficam ao lado: `janela-de-leituras.ts`, `config-grafico-painel.ts`, `escala-do-grafico.ts`, `desenho-do-grafico.ts` e `texto-do-indicador.ts`; as constantes de tempo novas (`JANELA_GRAFICO_MS`, `RELOGIO_SEM_SINAL_MS`, `MAX_PONTOS_JANELA`) ficam em `limites-de-tempo.ts`.
+- Hook de um componente de `components/` (decisão do HITL-3 do loop-007): um hook usado só por um componente de `components/`, que não fala com o main, fica ao lado dele em `components/`, e não em `hooks/`. Ex.: `use-agora-do-painel.ts`, usado só por `realtime-panel.tsx`. É o equivalente, fora de `pages/`, do hook de uma tela só. Quando passar a ser usado por outros componentes ou telas, ou a falar com o main, o hook vai para `hooks/`.
+- "Agora" de um gráfico que anda com o tempo (loop-007): o instante é dado por uma função pura, sem timer e sem `Date.now()` (`agoraDoPainel`, que recebe o estado, o último pacote, o relógio e o valor congelado), e o hook (`useAgoraDoPainel`) liga o timer só no estado que precisa dele (o `setInterval` de 1 s roda só no sem sinal; na sessão ativa o "agora" anda com os pacotes). Mesmo padrão da reprodução: a função pura é testada com valores explícitos, e o hook com fake timers.
 
 ## Nomes
 
@@ -152,6 +163,14 @@ Implementado no loop-003 (`src/main/db/migrator.ts`):
 - Saneamento de dados que precisa rodar a cada abertura não vai em migration (que roda uma vez só): vira função de repositório chamada em `index.ts` logo depois de `runMigrations()` e antes de criar o `CollectionService`. A rotina precisa ser idempotente, e uma falha nela só gera log, sem impedir o app de abrir. Exemplo: `encerrarSessoesAtivasAnteriores` (loop-004, ADR-009 em architecture.md), escolhida no HITL-1 no lugar de uma migration porque repara também as sessões que ficam ativas por falha ao gravar o encerramento.
 
 ## Em aberto
+
+Levantado no loop-007 (3.2); débitos não bloqueantes aceitos no HITL-3, aguardam decisão humana.
+
+- `components/caminho-svg.ts` não tem teste próprio: subiu do debriefing com `git mv`, sem um `caminho-svg.test.ts` ao lado.
+- Slugs à mão nos testes: os testes do loop-007 também escrevem slugs à mão. A pergunta do loop-006 continua aberta: a regra de "Estrutura de pastas" vale também para os testes?
+- O `tsconfig.json` da raiz não passa no `tsc` (anterior ao loop). As 3 configs usadas no build e no lint (main, renderer e preload) passam.
+
+Resolvido no loop-007 (rodada curta do HITL-3): os testes de `sinal-de-exibicao.ts` ficaram ao lado dele (`sinal-de-exibicao.test.ts`), e o `describe('segmentarPorFalhas')` repetido saiu de `reduzir-pontos.test.ts`, com os casos levados para `segmentar-serie.test.ts`; a altura de 84 px repetida em dois CSS virou a variável `--altura-grafico-painel`.
 
 Resolvido no loop-006: o cálculo de horas, minutos e segundos repetido em `formatarDuracaoDoVoo` e `formatarDuracaoPorExtenso` (`format-flight-time.ts`, loop-005) foi extraído para `formatarSegundosHms` e `formatarSegundosPorExtenso`.
 

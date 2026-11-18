@@ -3,6 +3,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { render, screen, cleanup, within } from '@testing-library/react'
 import { RealtimePanel } from './realtime-panel'
 import type { ParametroDeVoo } from '../../shared/types'
+import type { JanelaDeLeituras } from './janela-de-leituras'
 
 afterEach(cleanup)
 
@@ -228,6 +229,140 @@ describe('RealtimePanel', () => {
     it('não deve exibir "N/A" quando a lista está vazia ou ausente', () => {
       render(<RealtimePanel parametros={DOZE} valores={VALORES_DOZE} estado="ativa" />)
       expect(screen.queryByText('N/A')).not.toBeInTheDocument()
+    })
+  })
+
+  // --- loop-007: gráficos de linha (UC-002) ---
+
+  describe('gráficos de linha', () => {
+    const LEGENDA = 'Gráficos: últimos 2 minutos. A ponta direita da linha é o valor atual.'
+    const T = Date.parse('2024-01-01T00:00:10.000Z')
+    const JANELA: JanelaDeLeituras = {
+      series: {
+        altitude_msl: [
+          { t: T - 1000, v: 4480 },
+          { t: T, v: 4500 },
+        ],
+        airspeed_ias: [
+          { t: T - 1000, v: 110 },
+          { t: T, v: 112 },
+        ],
+        pitch: [
+          { t: T - 1000, v: 0 },
+          { t: T, v: 0 },
+        ],
+      },
+      ultimoInstante: T,
+    }
+
+    function graficos(container: HTMLElement): HTMLElement[] {
+      return Array.from(container.querySelectorAll<HTMLElement>('.grafico-do-painel'))
+    }
+
+    it('deve exibir a legenda dos gráficos (decisão 12)', () => {
+      render(<RealtimePanel parametros={PARAMETROS} valores={VALORES} estado="ativa" />)
+      expect(screen.getByText(LEGENDA)).toBeInTheDocument()
+    })
+
+    it('deve trocar a legenda pela mensagem de erro quando a consulta dos parâmetros falhou', () => {
+      render(<RealtimePanel parametros={[]} valores={{}} estado="ativa" erroParametros />)
+      expect(screen.queryByText(LEGENDA)).not.toBeInTheDocument()
+    })
+
+    it('deve exibir um gráfico por card, com a ponta da linha no último pacote (CA-002-7)', () => {
+      const { container } = render(
+        <RealtimePanel parametros={PARAMETROS} valores={VALORES} estado="ativa" janela={JANELA} />
+      )
+
+      expect(graficos(container)).toHaveLength(6)
+      const linha = within(screen.getByRole('group', { name: /^Altitude MSL:/ }))
+        .getByText('Altitude MSL')
+        .closest('.parameter-indicator')
+        ?.querySelector('.grafico-do-painel__linha')
+      expect(linha?.getAttribute('d')).toMatch(/L1000\.0 [\d.]+$/)
+      expect(
+        screen.getByRole('group', { name: 'Altitude MSL: 4.500 ft; últimos 2 minutos: de 4.480 a 4.500 ft' })
+      ).toBeInTheDocument()
+    })
+
+    it('deve usar a cor do grupo, sem cinza, na sessão ativa', () => {
+      const { container } = render(
+        <RealtimePanel parametros={PARAMETROS} valores={VALORES} estado="ativa" janela={JANELA} />
+      )
+
+      for (const grafico of graficos(container)) {
+        expect(grafico).not.toHaveClass('grafico-do-painel--sem-sinal')
+      }
+    })
+
+    it('deve deixar as linhas cinza no sem sinal (CA-002-5)', () => {
+      const { container } = render(
+        <RealtimePanel parametros={PARAMETROS} valores={VALORES} estado="sem-sinal" janela={JANELA} />
+      )
+
+      const lista = graficos(container)
+      expect(lista).toHaveLength(6)
+      for (const grafico of lista) {
+        expect(grafico).toHaveClass('grafico-do-painel--sem-sinal')
+      }
+    })
+
+    it('deve congelar os gráficos na cor do grupo na sessão encerrada (CA-002-4, P3)', () => {
+      const { container } = render(
+        <RealtimePanel parametros={PARAMETROS} valores={VALORES} estado="encerrada" janela={JANELA} />
+      )
+
+      const lista = graficos(container)
+      expect(lista[0]).toHaveClass('grafico-do-painel--voo')
+      expect(lista[4]).toHaveClass('grafico-do-painel--atitude-posicao')
+      for (const grafico of lista) {
+        expect(grafico).not.toHaveClass('grafico-do-painel--sem-sinal')
+      }
+      expect(
+        screen.getByRole('group', { name: 'Altitude MSL: 4.500 ft; últimos 2 minutos: de 4.480 a 4.500 ft' })
+      ).toBeInTheDocument()
+    })
+
+    it('deve deixar as linhas cinza na sessão encerrada com os valores descartados (CA-002-4)', () => {
+      const { container } = render(
+        <RealtimePanel
+          parametros={PARAMETROS}
+          valores={{}}
+          estado="encerrada"
+          janela={JANELA}
+          valoresDescartados
+        />
+      )
+
+      for (const grafico of graficos(container)) {
+        expect(grafico).toHaveClass('grafico-do-painel--sem-sinal')
+      }
+      expect(screen.getAllByText('—')).toHaveLength(6)
+    })
+
+    it('não deve exibir gráfico nos cards N/A (CA-002-18)', () => {
+      const { container } = render(
+        <RealtimePanel
+          parametros={PARAMETROS}
+          valores={VALORES}
+          estado="ativa"
+          janela={JANELA}
+          parametrosNaoAplicaveis={['pitch']}
+        />
+      )
+
+      expect(graficos(container)).toHaveLength(5)
+      expect(screen.getByText('A aeronave não possui este item')).toBeInTheDocument()
+    })
+
+    it('deve exibir os gráficos vazios sem janela (início da sessão)', () => {
+      const { container } = render(
+        <RealtimePanel parametros={PARAMETROS} valores={{}} estado="ativa" />
+      )
+
+      expect(graficos(container)).toHaveLength(6)
+      expect(container.querySelector('.grafico-do-painel__linha')).toBeNull()
+      expect(container.querySelector('.grafico-do-painel__ponto')).toBeNull()
     })
   })
 })

@@ -163,6 +163,15 @@ function grupoDe(nome: string): HTMLElement {
   return screen.getByRole('group', { name: new RegExp(`^${nome}:`) })
 }
 
+/** Elemento do valor atual do card (sem o gráfico e os limites da escala). */
+function valorDe(nome: string): HTMLElement {
+  const valor = grupoDe(nome).querySelector<HTMLElement>('.parameter-indicator__value')
+  if (valor === null) {
+    throw new Error(`Valor do card ${nome} não encontrado`)
+  }
+  return valor
+}
+
 function rotulosDoPainel(): string[] {
   const painel = screen.getByRole('region', { name: 'Painel de tempo real' })
   return within(painel)
@@ -254,7 +263,10 @@ describe('App', () => {
       expect(within(grupoDe('Velocidade IAS')).getByText('112')).toBeInTheDocument()
       expect(within(grupoDe('Velocidade vertical')).getByText('+650')).toBeInTheDocument()
       expect(within(grupoDe('Rumo magnético')).getByText('005')).toBeInTheDocument()
-      expect(grupoDe('Altitude MSL')).toHaveAccessibleName('Altitude MSL: 4.500 ft')
+      // CA-002-19: o rótulo diz o valor e, depois, a faixa da janela de 2 minutos.
+      expect(grupoDe('Altitude MSL')).toHaveAccessibleName(
+        'Altitude MSL: 4.500 ft; últimos 2 minutos: de 4.500 a 4.500 ft'
+      )
     })
 
     it('deve atualizar os valores a cada novo pacote', async () => {
@@ -645,12 +657,13 @@ describe('App', () => {
 
       fake.emitReadings(pacoteDoze('sess-1'))
 
-      expect(within(grupoDe('Latitude')).getByText('23,55052 S')).toBeInTheDocument()
-      expect(within(grupoDe('Longitude')).getByText('46,63331 O')).toBeInTheDocument()
-      expect(within(grupoDe('Manete')).getByText('85')).toBeInTheDocument()
-      expect(within(grupoDe('Mistura')).getByText('100')).toBeInTheDocument()
-      expect(within(grupoDe('RPM')).getByText('2.450')).toBeInTheDocument()
-      expect(within(grupoDe('Flapes')).getByText('30')).toBeInTheDocument()
+      // O valor atual fica no elemento do valor: "100" também é o limite da escala de 0 a 100 %.
+      expect(valorDe('Latitude')).toHaveTextContent('23,55052 S')
+      expect(valorDe('Longitude')).toHaveTextContent('46,63331 O')
+      expect(valorDe('Manete')).toHaveTextContent('85')
+      expect(valorDe('Mistura')).toHaveTextContent('100')
+      expect(valorDe('RPM')).toHaveTextContent('2.450')
+      expect(valorDe('Flapes')).toHaveTextContent('30')
     })
 
     it('deve exibir "N/A" nos parâmetros da lista da sessão, com a unidade (CA-006-4)', async () => {
@@ -749,6 +762,141 @@ describe('App', () => {
   })
 
   // ---------- UC-003: encerramento da sessão ----------
+
+  describe('loop-007: gráficos de linha do painel (UC-002)', () => {
+    const BASE = Date.parse('2024-01-01T00:00:00.000Z')
+
+    /** Pacote com instante próprio: a janela descarta pacotes com o mesmo timestamp. */
+    function pacoteEm(sessaoId: string, segundo: number, altitude: number): PacoteDeLeituras {
+      return { ...pacote(sessaoId, altitude), timestamp: new Date(BASE + segundo * 1000).toISOString() }
+    }
+
+    function botaoNav(nome: 'Painel' | 'Voos'): HTMLElement {
+      return within(screen.getByRole('navigation', { name: 'Navegação principal' })).getByRole(
+        'button',
+        { name: nome }
+      )
+    }
+
+    function linhaDe(nome: string): Element | null {
+      return grupoDe(nome).querySelector('.grafico-do-painel__linha')
+    }
+
+    it('deve exibir a legenda e um gráfico por card na sessão ativa (CA-002-7)', async () => {
+      const fake = createFakeApi({ sessao: makeSessao() })
+      await renderApp(fake)
+
+      fake.emitReadings(pacoteEm('sess-1', 1, 4500))
+      fake.emitReadings(pacoteEm('sess-1', 2, 4520))
+
+      expect(
+        screen.getByText('Gráficos: últimos 2 minutos. A ponta direita da linha é o valor atual.')
+      ).toBeInTheDocument()
+      const painel = screen.getByRole('region', { name: 'Painel de tempo real' })
+      expect(painel.querySelectorAll('.grafico-do-painel')).toHaveLength(6)
+      expect(linhaDe('Altitude MSL')?.getAttribute('d')).toMatch(/L1000\.0 [\d.]+$/)
+      expect(grupoDe('Altitude MSL')).toHaveAccessibleName(
+        'Altitude MSL: 4.520 ft; últimos 2 minutos: de 4.500 a 4.520 ft'
+      )
+    })
+
+    it('deve mostrar nos gráficos os pacotes que chegaram com a lista aberta (CA-002-16)', async () => {
+      const fake = createFakeApi({ sessao: makeSessao(), sessoesEncerradas: [] })
+      await renderApp(fake)
+      fake.emitReadings(pacoteEm('sess-1', 1, 4500))
+      fake.emitReadings(pacoteEm('sess-1', 2, 4510))
+
+      await userEvent.click(botaoNav('Voos'))
+      await flush()
+      expect(screen.queryByRole('region', { name: 'Painel de tempo real' })).not.toBeInTheDocument()
+      fake.emitReadings(pacoteEm('sess-1', 3, 4400))
+      fake.emitReadings(pacoteEm('sess-1', 4, 4530))
+      await userEvent.click(botaoNav('Painel'))
+
+      expect(grupoDe('Altitude MSL')).toHaveAccessibleName(
+        'Altitude MSL: 4.530 ft; últimos 2 minutos: de 4.400 a 4.530 ft'
+      )
+      expect(linhaDe('Altitude MSL')?.getAttribute('d')?.match(/[ML]/g)).toHaveLength(4)
+    })
+
+    it('deve zerar os gráficos quando começa uma nova sessão (CA-002-15)', async () => {
+      const sessao = makeSessao()
+      const fake = createFakeApi({ sessao })
+      await renderApp(fake)
+      fake.emitReadings(pacoteEm('sess-1', 1, 4500))
+      fake.emitReadings(pacoteEm('sess-1', 2, 4510))
+      fake.emitSessionEnded(encerrar(sessao))
+
+      fake.emitSessionStarted(makeSessao({ id: 'sess-2' }))
+
+      expect(grupoDe('Altitude MSL')).toHaveAccessibleName('Altitude MSL: sem sinal')
+      const painel = screen.getByRole('region', { name: 'Painel de tempo real' })
+      expect(painel.querySelector('.grafico-do-painel__linha')).toBeNull()
+      expect(painel.querySelector('.grafico-do-painel__ponto')).toBeNull()
+
+      fake.emitReadings(pacoteEm('sess-2', 600, 1200))
+      expect(grupoDe('Altitude MSL')).toHaveAccessibleName(
+        'Altitude MSL: 1.200 ft; últimos 2 minutos: de 1.200 a 1.200 ft'
+      )
+    })
+
+    it('deve manter a linha com a falha na reconexão da mesma sessão (CA-002-15)', async () => {
+      // No sem sinal o "agora" segue o relógio local: o relógio fica junto dos pacotes.
+      vi.useFakeTimers()
+      vi.setSystemTime(BASE + 2000)
+      const fake = createFakeApi({ sessao: makeSessao() })
+      await renderApp(fake)
+      fake.emitReadings(pacoteEm('sess-1', 1, 4500))
+      fake.emitReadings(pacoteEm('sess-1', 2, 4510))
+
+      fake.emitConnection('desconectado')
+      expect(linhaDe('Altitude MSL')).not.toBeNull()
+      expect(grupoDe('Altitude MSL').querySelector('.grafico-do-painel')).toHaveClass(
+        'grafico-do-painel--sem-sinal'
+      )
+
+      fake.emitConnection('conectado')
+      fake.emitReadings(pacoteEm('sess-1', 10, 4600))
+      fake.emitReadings(pacoteEm('sess-1', 11, 4610))
+
+      expect(grupoDe('Altitude MSL')).toHaveAccessibleName(
+        'Altitude MSL: 4.610 ft; últimos 2 minutos: de 4.500 a 4.610 ft'
+      )
+      expect(linhaDe('Altitude MSL')?.getAttribute('d')?.match(/M/g)).toHaveLength(2)
+      expect(grupoDe('Altitude MSL').querySelector('.grafico-do-painel')).not.toHaveClass(
+        'grafico-do-painel--sem-sinal'
+      )
+    })
+
+    it('deve congelar os gráficos na sessão encerrada, ignorando pacotes depois (CA-002-4)', async () => {
+      const sessao = makeSessao()
+      const fake = createFakeApi({ sessao })
+      await renderApp(fake)
+      fake.emitReadings(pacoteEm('sess-1', 1, 4500))
+      fake.emitReadings(pacoteEm('sess-1', 2, 4510))
+      const antes = linhaDe('Altitude MSL')?.getAttribute('d')
+
+      fake.emitSessionEnded(encerrar(sessao))
+      fake.emitReadings(pacoteEm('sess-1', 3, 9999))
+
+      expect(linhaDe('Altitude MSL')?.getAttribute('d')).toBe(antes)
+      expect(grupoDe('Altitude MSL')).toHaveAccessibleName(
+        'Altitude MSL: 4.510 ft; últimos 2 minutos: de 4.500 a 4.510 ft'
+      )
+      expect(grupoDe('Altitude MSL').querySelector('.grafico-do-painel')).not.toHaveClass(
+        'grafico-do-painel--sem-sinal'
+      )
+    })
+
+    it('deve começar com os gráficos vazios ao abrir o app com a sessão ativa (CA-002-17)', async () => {
+      await renderApp(createFakeApi({ sessao: makeSessao() }))
+
+      const painel = screen.getByRole('region', { name: 'Painel de tempo real' })
+      expect(painel.querySelectorAll('.grafico-do-painel')).toHaveLength(6)
+      expect(painel.querySelector('.grafico-do-painel__linha')).toBeNull()
+      expect(grupoDe('Altitude MSL')).toHaveAccessibleName('Altitude MSL: sem sinal')
+    })
+  })
 
   describe('UC-003: encerramento da sessão', () => {
     const ERRO_ENCERRAMENTO =

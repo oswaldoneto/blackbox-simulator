@@ -3,11 +3,12 @@
 > Propósito: Diretrizes de usabilidade e acessibilidade.
 > Atualizar quando: uma diretriz mudar ou um teste com usuários trouxer um aprendizado.
 > Relacionados: [../product/product.md](../product/product.md)
-> Última atualização: 2026-11-17 · loop-006
+> Última atualização: 2026-11-17 · loop-007
 
 ## Princípios
 
 - **Leitura rápida primeiro.** O piloto está com atenção dividida entre o simulador e o painel. Toda informação relevante é visível sem rolagem e sem abrir submenus. (Exceção aceita no loop-003: com 12 cards no painel de tempo real, larguras de 900px ou menos podem exigir rolagem; ver [design.md](design.md).)
+  - Exceção ampliada no loop-007 (decisão 16 da 1.1): com os gráficos de linha, os cards ficam com cerca de 181px, e alturas de conteúdo menores que cerca de 700px exigem rolagem mesmo a 4 colunas (ex.: telas de 720 a 768px de altura). Débito no item 10 do backlog (ver [design.md](design.md), "Em aberto").
   - Exceção do debriefing (loop-006, UC-005): o princípio vale para o voo ao vivo. No debriefing o piloto não está voando, e a tela do voo (reprodutor, trajetória, painel de instrumentos e perfil vertical) exige rolagem vertical. Débito: ao rolar até o perfil, os controles de reprodução saem da vista (ver [design.md](design.md), "Em aberto").
 - **Interações breves.** Qualquer ação no painel de tempo real é concluída em no máximo um clique ou tecla. Fluxos que exigem mais de uma etapa pertencem ao debriefing, não ao painel de voo.
 - **Foco por demanda.** O piloto pode maximizar qualquer seção ou gráfico individualmente para ter foco maior naquele dado. A maximização não altera os dados exibidos, apenas a área de visualização. (No painel de tempo real, a maximização ficou fora do loop-002 e é item do backlog; no debriefing, ficou fora do loop-006, também no backlog.)
@@ -25,7 +26,15 @@
 ### Leitor de tela no painel de tempo real (UC-002)
 
 - Cada indicador de parâmetro é um grupo (`role="group"`) com `aria-label` em texto, no formato "<rótulo>: <valor> <unidade>", "<rótulo>: sem sinal" ou, para parâmetro que a aeronave não possui, "<rótulo>: não aplicável" (loop-003). A precedência é a mesma do card: não aplicável, depois sem sinal, depois valor.
-- Os indicadores não têm `aria-live`: a atualização a cada segundo não é anunciada, para não sobrecarregar o leitor de tela.
+- Faixa dos gráficos (loop-007, CA-002-19, decisão 10 da 1.1): quando a janela tem leituras, o `aria-label` ganha a faixa dos últimos 2 minutos:
+  - com valor: "<rótulo>: <valor> <unidade>; últimos 2 minutos: de <mín> a <máx> <unidade>" (ex.: "Altitude MSL: 4.500 ft; últimos 2 minutos: de 4.320 a 4.510 ft");
+  - sem sinal com leituras na janela: "<rótulo>: sem sinal; últimos 2 minutos: de <mín> a <máx> <unidade>" (decisão T7);
+  - com a janela vazia, a faixa é omitida e o texto volta aos formatos acima;
+  - não aplicável: só "<rótulo>: não aplicável" (o card N/A não tem gráfico);
+  - o mínimo e o máximo são as leituras da janela (não os limites da escala), na formatação do valor do parâmetro;
+  - no rumo, a faixa é o menor arco que cobre as leituras, inclusive passando pelo norte (ex.: "de 350 a 010"; decisão T6, opção b).
+- O desenho do gráfico e os limites da escala levam `aria-hidden`; a informação do gráfico chega ao leitor de tela só pela faixa do `aria-label`.
+- Os indicadores não têm `aria-live`: a atualização a cada segundo (inclusive da faixa) não é anunciada, para não sobrecarregar o leitor de tela.
 - O encerramento da sessão é anunciado uma única vez, pela notificação "Sessão encerrada. Dados salvos."; o aviso "Sessão encerrada" do painel não tem `role="status"`. Na falha ao gravar o encerramento (loop-004), quem anuncia é a notificação de erro.
 - A notificação de sistema, inclusive a de erro, usa `role="status"` e `aria-live="polite"`.
 - O aviso "Sem sinal do simulador" tem `role="status"`, para ser anunciado.
@@ -38,6 +47,14 @@ Débitos de acessibilidade (revisão do loop-002, sem decisão):
 Débitos de acessibilidade (revisão do loop-004; decisão do HITL-3: débito para um loop de UX do painel):
 - A notificação de erro usa `role="status"`/`aria-live="polite"`; o usual para erro seria `role="alert"`.
 - Cada notificação nova é remontada (para reiniciar os 4 s) já com o texto; isso estende o risco de não anúncio, descrito acima, à notificação que substitui outra.
+
+Débitos de acessibilidade (revisão do loop-007; decisão do HITL-3: débito):
+- Leitura em dobro no card N/A: o `aria-label` diz "<rótulo>: não aplicável", e o texto visível "A aeronave não possui este item" pode ser lido também (agrava o débito dos cards lidos em dobro).
+- O `aria-label` ficou mais longo com a faixa e muda a cada segundo.
+
+Conferências manuais com NVDA a fazer (teste no Windows do loop-007):
+- a leitura em dobro no card N/A;
+- o `aria-label` mais longo, com a faixa: se é lido inteiro e de forma compreensível ao navegar pelos cards, e se a mudança a cada segundo gera anúncios sem `aria-live`.
 
 ### Navegação, lista de voos e tela do voo (UC-004)
 
@@ -84,7 +101,7 @@ Conferências manuais com NVDA a fazer (teste no Windows do loop-006):
 
 Perguntas de diretriz pendentes (revisão de usabilidade do loop-006, sem decisão humana):
 - O alvo mínimo de 44×44px vira diretriz? Hoje os botões de velocidade têm 48×36px e o polegar da linha do tempo é menor.
-- O contraste gráfico mínimo de 3:1 (contornos de componentes, traços e partes de gráficos que carregam informação) vira diretriz? No loop-006 ele foi aplicado ao tracejado da trajetória e à alavanca de mistura, mas não está escrito aqui.
+- O contraste gráfico mínimo de 3:1 (contornos de componentes, traços e partes de gráficos que carregam informação) vira diretriz? Continua sem decisão, mas foi aplicado na prática: no loop-006, ao tracejado da trajetória e à alavanca de mistura; no loop-007, às linhas dos gráficos do painel, contra o branco e contra a área (decisão 15 da 1.1, que escureceu o laranja e criou o cinza; ver [design.md](design.md), "Cores do gráfico de linha do painel").
 - "N/A mantém a unidade" (decisão do HITL-1 do loop-003 para o painel de tempo real) vale também no debriefing? Hoje a unidade some nos instrumentos e no perfil vertical.
 
 ## Feedback e mensagens de erro
@@ -164,7 +181,8 @@ Textos aprovados no loop-006 (HITL-1 e HITL-3):
 ### Painel de tempo real (UC-002)
 
 - Cadência: os valores são atualizados a cada 1 s, com o valor lido do simulador. Atraso máximo aceitável entre o simulador e o painel: 2 s (conferido nos testes manuais no Windows com o MSFS 2024 dos loops 002 e 003).
-- Limite de sem sinal: se a conexão com o simulador cair durante a sessão ou se passarem 2 s sem dados novos, os valores viram "—" e o painel mostra o aviso. Os valores voltam sozinhos quando os dados retornam. Cards N/A continuam "N/A".
+- Gráficos (loop-007): o gráfico de cada card se atualiza junto com o valor, com o mesmo atraso máximo de 2 s (CA-002-2). A janela é fixa em 2 minutos, sem seletor. A conferir no teste manual no Windows do loop-007.
+- Limite de sem sinal: se a conexão com o simulador cair durante a sessão ou se passarem 2 s sem dados novos, os valores viram "—", as linhas dos gráficos ficam cinza e o painel mostra o aviso. Os valores voltam sozinhos quando os dados retornam. Cards N/A continuam "N/A".
 - Não aplicável (UC-006, RN-007): o parâmetro que a aeronave não possui mostra "N/A" a sessão toda, com a unidade mantida. Flapes são N/A em aeronave sem flapes; Mistura é N/A em motor que não é a pistão. Um 0 válido (flapes recolhidos, RPM 0) aparece como 0, não como N/A.
 - Textos do painel:
 
@@ -175,6 +193,8 @@ Textos aprovados no loop-006 (HITL-1 e HITL-3):
 | Sessão encerrada (aviso, valores congelados) | "Sessão encerrada" |
 | Sem sinal (aviso, valores "—") | "Sem sinal do simulador" |
 | Parâmetro que a aeronave não possui (no lugar do valor) | "N/A" |
+| Parâmetro que a aeronave não possui (no lugar do gráfico; loop-007) | "A aeronave não possui este item" |
+| Legenda dos gráficos (acima da grade, à direita; loop-007) | "Gráficos: últimos 2 minutos. A ponta direita da linha é o valor atual." |
 | Falha ao carregar os parâmetros (aviso no lugar da grade) | "Não foi possível carregar os parâmetros." |
 | Barra superior, conectado sem sessão | "Aguardando motor" |
 | Barra superior, simulador inacessível | "Sem conexão" |

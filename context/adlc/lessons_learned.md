@@ -3,7 +3,7 @@
 > Propósito: O que cada loop ensinou, e onde a lição foi aplicada no contexto.
 > Atualizar quando: no final de cada loop.
 > Relacionados: [loop_report.md](loop_report.md)
-> Última atualização: 2026-11-17 · loop-006
+> Última atualização: 2026-11-17 · loop-007
 
 ## Lições
 
@@ -173,7 +173,7 @@ Data: 2026-11-17
 Loop: loop-006
 O que aconteceu: O protótipo da tela do voo ("Debriefing · opção D") foi aprovado antes do loop. A 1.1 partiu dele: as questões que ele já levantava (faixas de cor por aeronave, ângulo dos flapes, marcadores de evento, redução de pontos) viraram perguntas objetivas, e as 16 recomendações foram aceitas na opção (a). Os agentes usaram o protótipo como referência visual na implementação e na revisão.
 Lição: Para itens com interface nova e rica, aprovar um protótipo antes do loop reduz as perguntas abertas da 1.1 e dá aos agentes uma referência visual comum. As questões que o protótipo deixa em aberto devem ser anotadas junto com ele, para entrarem na 1.1 como perguntas.
-Onde foi aplicada: loop-006, "Referência de interface" e 1.1 em loop_reports/loop-006.md. Pendente: tornar a prática uma etapa recomendada antes do loop em agent_development_lifecycle.md (decisão do humano).
+Onde foi aplicada: loop-006, "Referência de interface" e 1.1 em loop_reports/loop-006.md. Reforçada no loop-007: o protótipo "Painel de tempo real (gráficos de linha, 2 min)" foi aprovado antes do loop, junto com as decisões da janela fixa de 2 minutos e da memória no renderer; as 16 recomendações da 1.1 foram aceitas como propostas. Pendente: tornar a prática uma etapa recomendada antes do loop em agent_development_lifecycle.md (decisão do humano).
 
 LL-025
 Data: 2026-11-17
@@ -202,6 +202,27 @@ Loop: loop-006
 O que aconteceu: Na 2.2 da rodada curta, o tester rodou o Prettier sem a configuração do projeto e reformatou um arquivo de teste fora do estilo (aspas, ponto e vírgula). Ele reformatou de volta, mas ficaram diferenças de quebra de linha em `flight-detail-page.test.tsx`.
 Lição: Agentes não devem rodar formatador sem a configuração do projeto. Enquanto o projeto não tiver config de Prettier (débito antigo), a formatação vale pelo lint e pelo estilo dos arquivos existentes.
 Onde foi aplicada: pendente (instrução nos agentes developer e tester, .bob e .claude, e a config de Prettier, decisões do humano).
+
+LL-029
+Data: 2026-11-17
+Loop: loop-007
+O que aconteceu: O `useLiveReadings` fica no topo do `App`, e o main manda `parameter:readings` em qualquer tela. Por isso a janela de 2 minutos dos gráficos sobreviveu à troca de tela (CA-002-16) sem nenhum código novo. Já o "agora" congelado, guardado no estado do `RealtimePanel`, se perde quando o painel desmonta, se a sessão encerrou durante o sem sinal. Ficou como débito do item 12.
+Lição: Estado de exibição que precisa sobreviver à troca de tela deve ficar no topo da árvore (no `App` ou num hook usado por ele), não no componente da tela, que desmonta ao navegar. Na 1.2, para cada estado novo, vale perguntar se ele precisa sobreviver à troca de tela e escolher o lugar por essa resposta.
+Onde foi aplicada: loop-007, 1.2 ("O que o código atual já garante"), débito do HITL-2 e item 3.4.2 da revisão em loop_reports/loop-007.md; backlog item 12. Pendente: registrar a regra em architecture.md ou code_conventions.md (4.2, a conferir no HITL-4).
+
+LL-030
+Data: 2026-11-17
+Loop: loop-007
+O que aconteceu: As linhas dos gráficos ficam sobre a própria área de preenchimento, não só sobre o fundo branco do card. A 1.2 pediu a medição contra os dois. Na 2.1, o verde passava contra o branco, mas não contra a área, que foi clareada (#ECF8EF). Laranja e cinza ficaram em 3,00 e 3,01:1 contra a área, sem margem, e as áreas foram clareadas na rodada curta (3,09 e 3,07:1).
+Lição: Quando um traço fica sobre um preenchimento (área de gráfico, faixa, destaque), o contraste mínimo deve ser medido contra o preenchimento, não só contra o fundo da superfície. É um caso particular da LL-025: medir contra tudo o que fica atrás ou ao lado do elemento.
+Onde foi aplicada: loop-007, tarefa 14 da 1.2, 2.1 e rodada curta em loop_reports/loop-007.md; a margem curta (3,07 a 3,09:1) ficou como débito no item 10. Pendente: registrar em design.md junto com as cores dos gráficos (4.4, a conferir no HITL-4).
+
+LL-031
+Data: 2026-11-17
+Loop: loop-007
+O que aconteceu: O gráfico do painel é um SVG com viewBox de 1000×100 e `preserveAspectRatio="none"`, que estica para a largura do card. A leitura mais recente fica em x=1000, e o ponto isolado e a ponta da linha saíam cortados ao meio na borda direita. Uma margem em unidades do viewBox seria deformada pela escala horizontal diferente da vertical. A correção foi `overflow: visible` com `clip-path: inset(-3px -3px -3px 0)`: folga em px de tela à direita, em cima e embaixo, e corte rente à esquerda.
+Lição: Num SVG com `preserveAspectRatio="none"`, a folga para traços e pontos nas bordas deve ser dada em px de tela, com `clip-path` e `overflow: visible`, e não em unidades do viewBox. É a mesma ideia da LL-026 (`non-scaling-stroke`) aplicada ao recorte. Como o jsdom não aplica `clip-path`, a conferência é visual.
+Onde foi aplicada: loop-007, rodada curta (ajuste 1) em loop_reports/loop-007.md; o ponto cortado à esquerda em x=0 ficou como débito no item 10. Pendente: registrar no padrão de gráfico SVG de code_conventions.md (4.2, a conferir no HITL-4).
 
 ## Modelo de lição
 
